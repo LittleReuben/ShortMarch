@@ -3,6 +3,7 @@
 #include "Entity.h"
 
 #include "glm/gtc/matrix_transform.hpp"
+#include "imgui.h"
 
 namespace {
 #include "built_in_shaders.inl"
@@ -21,36 +22,45 @@ Application::~Application() {
 }
 
 // Event handler for keyboard input
-// We assume GLFW-like action codes: 1 for PRESS, 0 for RELEASE.
-// We assume ASCII-like key codes: 87 for W, 83 for S, 65 for A, 68 for D.
+// Poll keyboard state directly to ensure it works even when ImGui is active
 void Application::ProcessInput() {
     // Only process input if camera is enabled
     if (!camera_enabled_) {
         return;
     }
 
+    // Get GLFW window handle
+    GLFWwindow* glfw_window = window_->GLFWWindow();
+    
+    // Check if this window has focus - only process input for focused window
+    if (glfwGetWindowAttrib(glfw_window, GLFW_FOCUSED) == GLFW_FALSE) {
+        return;
+    }
+
+    // Poll key states directly
     // Move forward
-    if (is_w_pressed_) {
+    if (glfwGetKey(glfw_window, GLFW_KEY_W) == GLFW_PRESS) {
         camera_pos_ += camera_speed_ * camera_front_;
     }
     // Move backward
-    if (is_s_pressed_) {
+    if (glfwGetKey(glfw_window, GLFW_KEY_S) == GLFW_PRESS) {
         camera_pos_ -= camera_speed_ * camera_front_;
     }
     // Strafe left
-    if (is_a_pressed_) {
+    if (glfwGetKey(glfw_window, GLFW_KEY_A) == GLFW_PRESS) {
         camera_pos_ -= glm::normalize(glm::cross(camera_front_, camera_up_)) * camera_speed_;
     }
     // Strafe right
-    if (is_d_pressed_) {
+    if (glfwGetKey(glfw_window, GLFW_KEY_D) == GLFW_PRESS) {
         camera_pos_ += glm::normalize(glm::cross(camera_front_, camera_up_)) * camera_speed_;
     }
     // Move up (Space)
-    if (is_space_pressed_) {
+    if (glfwGetKey(glfw_window, GLFW_KEY_SPACE) == GLFW_PRESS) {
         camera_pos_ += camera_speed_ * camera_up_;
     }
     // Move down (Shift)
-    if (is_shift_pressed_) {
+    if (glfwGetKey(glfw_window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || 
+        glfwGetKey(glfw_window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
         camera_pos_ -= camera_speed_ * camera_up_;
     }
 }
@@ -103,77 +113,17 @@ void Application::OnMouseButton(int button, int action, int mods, double xpos, d
         // Toggle camera mode
         camera_enabled_ = !camera_enabled_;
         
+        GLFWwindow* glfw_window = window_->GLFWWindow();
+        
         if (camera_enabled_) {
             // Entering camera mode - hide cursor and grab it
-            glfwSetInputMode(window_->GLFWWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             first_mouse_ = true; // Reset to prevent jump
-            grassland::LogInfo("Camera mode enabled");
+            grassland::LogInfo("Camera mode enabled - use WASD/Space/Shift to move, mouse to look");
         } else {
             // Exiting camera mode - show cursor
-            glfwSetInputMode(window_->GLFWWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-            grassland::LogInfo("Camera mode disabled - cursor visible");
-        }
-    }
-}
-
-// Process keyboard input each frame
-void Application::OnKeyEvent(int key, int scancode, int action, int mods) {
-    const int ACTION_PRESS = 1;
-    const int ACTION_RELEASE = 0;
-
-    const int KEY_W = 87;     // W
-    const int KEY_S = 83;     // S
-    const int KEY_A = 65;     // A
-    const int KEY_D = 68;     // D
-    const int KEY_SPACE = 32; // Space
-    const int KEY_SHIFT = 340; // Left Shift (GLFW_KEY_LEFT_SHIFT)
-
-    if (key == KEY_W) {
-        if (action == ACTION_PRESS) {
-            is_w_pressed_ = true;
-        }
-        else if (action == ACTION_RELEASE) {
-            is_w_pressed_ = false;
-        }
-    }
-    else if (key == KEY_S) {
-        if (action == ACTION_PRESS) {
-            is_s_pressed_ = true;
-        }
-        else if (action == ACTION_RELEASE) {
-            is_s_pressed_ = false;
-        }
-    }
-    else if (key == KEY_A) {
-        if (action == ACTION_PRESS) {
-            is_a_pressed_ = true;
-        }
-        else if (action == ACTION_RELEASE) {
-            is_a_pressed_ = false;
-        }
-    }
-    else if (key == KEY_D) {
-        if (action == ACTION_PRESS) {
-            is_d_pressed_ = true;
-        }
-        else if (action == ACTION_RELEASE) {
-            is_d_pressed_ = false;
-        }
-    }
-    else if (key == KEY_SPACE) {
-        if (action == ACTION_PRESS) {
-            is_space_pressed_ = true;
-        }
-        else if (action == ACTION_RELEASE) {
-            is_space_pressed_ = false;
-        }
-    }
-    else if (key == KEY_SHIFT) {
-        if (action == ACTION_PRESS) {
-            is_shift_pressed_ = true;
-        }
-        else if (action == ACTION_RELEASE) {
-            is_shift_pressed_ = false;
+            glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            grassland::LogInfo("Camera mode disabled - cursor visible, showing info overlay");
         }
     }
 }
@@ -187,12 +137,9 @@ void Application::OnInit() {
         std::string(" Ray Tracing Scene Demo"),
         &window_);
 
-    // Register the key event handler
-    window_->KeyEvent().RegisterCallback(
-        [this](int key, int scancode, int action, int mods) {
-            this->OnKeyEvent(key, scancode, action, mods);
-        }
-    );
+    // Initialize ImGui for this window
+    window_->InitImGui();
+
     // Register the mouse move event handler
     window_->MouseMoveEvent().RegisterCallback(
         [this](double xpos, double ypos) {
@@ -206,9 +153,10 @@ void Application::OnInit() {
         }
     );
 
-    // Initialize camera as enabled and hide cursor
-    camera_enabled_ = true;
-    glfwSetInputMode(window_->GLFWWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // Initialize camera as DISABLED to avoid cursor conflicts with multiple windows
+    camera_enabled_ = false;
+    selected_entity_id_ = -1; // No entity selected initially
+    // Don't grab cursor initially - user can right-click to enable camera mode
 
     // Create scene
     scene_ = std::make_unique<Scene>(core_.get());
@@ -305,6 +253,7 @@ void Application::OnInit() {
 }
 
 void Application::OnClose() {
+    // Clean up graphics resources first
     program_.reset();
     raygen_shader_.reset();
     miss_shader_.reset();
@@ -314,12 +263,17 @@ void Application::OnClose() {
 
     color_image_.reset();
     camera_object_buffer_.reset();
+    
+    // Don't call TerminateImGui - let the window destructor handle it
+    // Just reset window which will clean everything up properly
+    window_.reset();
 }
 
 void Application::OnUpdate() {
     if (window_->ShouldClose()) {
         window_->CloseWindow();
         alive_ = false;
+        return;  // Exit update immediately after closing
     }
     if (alive_) {
         // +++ ADDED SECTION +++
@@ -341,7 +295,209 @@ void Application::OnUpdate() {
     }
 }
 
+void Application::RenderInfoOverlay() {
+    // Only show overlay when camera is disabled
+    if (camera_enabled_) {
+        return;
+    }
+
+    // Create a window on the left side (matching entity panel style)
+    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(350.0f, (float)window_->GetHeight()), ImGuiCond_Always);
+    
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | 
+                                     ImGuiWindowFlags_NoResize | 
+                                     ImGuiWindowFlags_NoCollapse;
+    
+    if (!ImGui::Begin("Scene Information", nullptr, window_flags)) {
+        ImGui::End();
+        return;
+    }
+
+    // Camera Information
+    ImGui::SeparatorText("Camera");
+    ImGui::Text("Position: (%.2f, %.2f, %.2f)", camera_pos_.x, camera_pos_.y, camera_pos_.z);
+    ImGui::Text("Direction: (%.2f, %.2f, %.2f)", camera_front_.x, camera_front_.y, camera_front_.z);
+    ImGui::Text("Yaw: %.1f°  Pitch: %.1f°", yaw_, pitch_);
+    ImGui::Text("Speed: %.3f", camera_speed_);
+    ImGui::Text("Sensitivity: %.2f", mouse_sensitivity_);
+
+    ImGui::Spacing();
+
+    // Scene Information
+    ImGui::SeparatorText("Scene");
+    size_t entity_count = scene_->GetEntityCount();
+    ImGui::Text("Entities: %zu", entity_count);
+    ImGui::Text("Materials: %zu", entity_count); // One material per entity
+    
+    // Calculate total triangles
+    size_t total_triangles = 0;
+    for (const auto& entity : scene_->GetEntities()) {
+        if (entity && entity->GetIndexBuffer()) {
+            // Each 3 indices = 1 triangle
+            size_t indices = entity->GetIndexBuffer()->Size() / sizeof(uint32_t);
+            total_triangles += indices / 3;
+        }
+    }
+    ImGui::Text("Total Triangles: %zu", total_triangles);
+
+    ImGui::Spacing();
+
+    // Render Information
+    ImGui::SeparatorText("Render");
+    ImGui::Text("Resolution: %d x %d", window_->GetWidth(), window_->GetHeight());
+    ImGui::Text("Backend: %s", 
+                core_->API() == grassland::graphics::BACKEND_API_VULKAN ? "Vulkan" : "D3D12");
+    ImGui::Text("Device: %s", core_->DeviceName().c_str());
+
+    ImGui::Spacing();
+
+    // Controls hint
+    ImGui::SeparatorText("Controls");
+    ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Right Click to enable camera");
+    ImGui::Text("W/A/S/D - Move camera");
+    ImGui::Text("Space/Shift - Up/Down");
+    ImGui::Text("Mouse - Look around");
+
+    ImGui::End();
+}
+
+void Application::RenderEntityPanel() {
+    // Only show entity panel when camera is disabled
+    if (camera_enabled_) {
+        return;
+    }
+
+    // Create a window on the right side
+    ImGui::SetNextWindowPos(ImVec2((float)window_->GetWidth() - 350.0f, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(350.0f, (float)window_->GetHeight()), ImGuiCond_Always);
+    
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | 
+                                     ImGuiWindowFlags_NoResize | 
+                                     ImGuiWindowFlags_NoCollapse;
+    
+    if (!ImGui::Begin("Entity Inspector", nullptr, window_flags)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::SeparatorText("Entity Selection");
+    
+    const auto& entities = scene_->GetEntities();
+    size_t entity_count = entities.size();
+    
+    // Entity dropdown with limited height
+    ImGui::Text("Select Entity:");
+    
+    // Create preview text
+    std::string preview_text = selected_entity_id_ >= 0 ? 
+        "Entity #" + std::to_string(selected_entity_id_) : 
+        "None";
+    
+    ImGui::SetNextItemWidth(-1); // Full width
+    if (ImGui::BeginCombo("##entity_select", preview_text.c_str())) {
+        // Add "None" option
+        bool is_selected = (selected_entity_id_ == -1);
+        if (ImGui::Selectable("None", is_selected)) {
+            selected_entity_id_ = -1;
+        }
+        if (is_selected) {
+            ImGui::SetItemDefaultFocus();
+        }
+        
+        // Add all entities to the list
+        for (size_t i = 0; i < entity_count; i++) {
+            std::string label = "Entity #" + std::to_string(i);
+            bool is_entity_selected = (selected_entity_id_ == (int)i);
+            
+            if (ImGui::Selectable(label.c_str(), is_entity_selected)) {
+                selected_entity_id_ = (int)i;
+            }
+            
+            if (is_entity_selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        
+        ImGui::EndCombo();
+    }
+    
+    ImGui::Spacing();
+    
+    // Show details if an entity is selected
+    if (selected_entity_id_ >= 0 && selected_entity_id_ < (int)entity_count) {
+        ImGui::SeparatorText("Entity Details");
+        
+        const auto& entity = entities[selected_entity_id_];
+        
+        // Transform information
+        ImGui::Text("Transform:");
+        glm::mat4 transform = entity->GetTransform();
+        glm::vec3 position = glm::vec3(transform[3]);
+        ImGui::Text("  Position: (%.2f, %.2f, %.2f)", position.x, position.y, position.z);
+        
+        // Scale
+        glm::vec3 scale = glm::vec3(
+            glm::length(glm::vec3(transform[0])),
+            glm::length(glm::vec3(transform[1])),
+            glm::length(glm::vec3(transform[2]))
+        );
+        ImGui::Text("  Scale: (%.2f, %.2f, %.2f)", scale.x, scale.y, scale.z);
+        
+        ImGui::Spacing();
+        
+        // Material information
+        ImGui::SeparatorText("Material");
+        Material mat = entity->GetMaterial();
+        
+        ImGui::Text("Base Color:");
+        ImGui::ColorEdit3("##base_color", &mat.base_color[0], ImGuiColorEditFlags_NoInputs);
+        ImGui::Text("  RGB: (%.2f, %.2f, %.2f)", mat.base_color.r, mat.base_color.g, mat.base_color.b);
+        
+        ImGui::Text("Roughness: %.2f", mat.roughness);
+        ImGui::Text("Metallic: %.2f", mat.metallic);
+        
+        ImGui::Spacing();
+        
+        // Mesh information
+        ImGui::SeparatorText("Mesh");
+        if (entity->GetIndexBuffer()) {
+            size_t index_count = entity->GetIndexBuffer()->Size() / sizeof(uint32_t);
+            size_t triangle_count = index_count / 3;
+            ImGui::Text("Triangles: %zu", triangle_count);
+            ImGui::Text("Indices: %zu", index_count);
+        }
+        
+        if (entity->GetVertexBuffer()) {
+            size_t vertex_size = sizeof(float) * 8; // Assuming pos(3) + normal(3) + uv(2)
+            size_t vertex_count = entity->GetVertexBuffer()->Size() / vertex_size;
+            ImGui::Text("Vertices: %zu", vertex_count);
+        }
+        
+        ImGui::Spacing();
+        
+        // BLAS information
+        ImGui::SeparatorText("Acceleration Structure");
+        if (entity->GetBLAS()) {
+            ImGui::Text("BLAS: Built");
+        } else {
+            ImGui::Text("BLAS: Not built");
+        }
+    } else {
+        ImGui::TextDisabled("No entity selected");
+        ImGui::Spacing();
+        ImGui::TextWrapped("Select an entity from the dropdown above to inspect.");
+    }
+    
+    ImGui::End();
+}
+
 void Application::OnRender() {
+    // Don't render if window is closing
+    if (!alive_) {
+        return;
+    }
+
     std::unique_ptr<grassland::graphics::CommandContext> command_context;
     core_->CreateCommandContext(&command_context);
     command_context->CmdClearImage(color_image_.get(), { {0.6, 0.7, 0.8, 1.0} });
@@ -351,6 +507,13 @@ void Application::OnRender() {
     command_context->CmdBindResources(2, { camera_object_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(3, { scene_->GetMaterialsBuffer() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdDispatchRays(window_->GetWidth(), window_->GetHeight(), 1);
+    
+    // Render ImGui overlay
+    window_->BeginImGuiFrame();
+    RenderInfoOverlay();
+    RenderEntityPanel();
+    window_->EndImGuiFrame();
+    
     command_context->CmdPresent(window_.get(), color_image_.get());
     core_->SubmitCommandContext(command_context.get());
 }

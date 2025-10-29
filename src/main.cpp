@@ -1,31 +1,21 @@
 #include "app.h"
 
 int main() {
-  Application app_d3d12{grassland::graphics::BACKEND_API_D3D12};
-  Application app_vulkan{grassland::graphics::BACKEND_API_VULKAN};
+  // Create only one application instance to avoid ImGui conflicts
+  // Change BACKEND_API_D3D12 to BACKEND_API_VULKAN if you prefer Vulkan
+  Application app{grassland::graphics::BACKEND_API_D3D12};
 
-  app_d3d12.OnInit();
-  app_vulkan.OnInit();
+  app.OnInit();
 
-  while (app_d3d12.IsAlive() || app_vulkan.IsAlive()) {
-    if (app_d3d12.IsAlive()) {
-      app_d3d12.OnUpdate();
+  while (app.IsAlive()) {
+    app.OnUpdate();
+    if (app.IsAlive()) {  // Check again after update
+      app.OnRender();
     }
-    if (app_d3d12.IsAlive()) {
-      app_d3d12.OnRender();
-    }
-    if (app_vulkan.IsAlive()) {
-      app_vulkan.OnUpdate();
-    }
-    if (app_vulkan.IsAlive()) {
-      app_vulkan.OnRender();
-    }
-
     glfwPollEvents();
   }
 
-  app_d3d12.OnClose();
-  app_vulkan.OnClose();
+  app.OnClose();
 
   return 0;
 }

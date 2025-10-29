@@ -18,6 +18,7 @@ public:
     void OnClose();
     void OnUpdate();
     void OnRender();
+    void RenderEntityPanel(); // Render entity inspector panel on the right
 
     bool IsAlive() const {
         return alive_;
@@ -47,25 +48,16 @@ private:
     // +++ MODIFIED FOR CAMERA CONTROLS +++
     void ProcessInput(); // Helper function for keyboard input
 
-    // Event handler for key presses
-    void OnKeyEvent(int key, int scancode, int action, int mods);
 
     glm::vec3 camera_pos_;
     glm::vec3 camera_front_;
     glm::vec3 camera_up_;
     float camera_speed_;
 
-    // Key state tracking
-    bool is_w_pressed_{ false };
-    bool is_s_pressed_{ false };
-    bool is_a_pressed_{ false };
-    bool is_d_pressed_{ false };
-    bool is_space_pressed_{ false };
-    bool is_shift_pressed_{ false };
-
 
     void OnMouseMove(double xpos, double ypos); // Mouse event handler
     void OnMouseButton(int button, int action, int mods, double xpos, double ypos); // Mouse button event handler
+    void RenderInfoOverlay(); // Render the info overlay
 
     float yaw_;
     float pitch_;
@@ -74,4 +66,7 @@ private:
     float mouse_sensitivity_;
     bool first_mouse_; // Prevents camera jump on first mouse input
     bool camera_enabled_; // Whether camera movement is enabled
+    
+    // Entity selection
+    int selected_entity_id_; // -1 if no entity selected
 };
