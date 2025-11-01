@@ -91,6 +91,7 @@ src/
 ├── app.h/app.cpp         # Main application class with rendering loop
 ├── Scene.h/Scene.cpp     # Scene manager (TLAS, materials buffer)
 ├── Entity.h/Entity.cpp   # Entity class (mesh, BLAS, transform)
+├── Film.h/Film.cpp       # Film class for progressive accumulation
 ├── Material.h            # Material structure for PBR properties
 └── shaders/
     └── shader.hlsl       # Ray tracing shaders (raygen, miss, closest hit)
@@ -116,11 +117,17 @@ The demo supports two modes:
   - UI panels display camera, scene, and entity information
 
 #### 3. Entity Highlighting and Selection
+- **Pixel-Perfect Picking**: Uses a GPU-rendered entity ID buffer for accurate entity detection under the cursor
 - **Hover Highlighting**: Entities glow yellow when the cursor hovers over them
 - **Click Selection**: Left-click on an entity to select it and view details in the right panel
-- **Ray-Sphere Intersection**: CPU-side ray casting matches GPU rendering for accurate picking
 
-#### 4. ImGui Interface
+#### 4. Progressive Accumulation (Film Class)
+- **Automatic Accumulation**: When camera is stationary (camera mode disabled), samples accumulate over time
+- **High-Quality Rendering**: Progressive refinement produces noise-free images with more samples
+- **Smart Reset**: Accumulation automatically resets when camera movement stops
+- **Real-time Feedback**: Sample count displayed in UI shows accumulation progress
+
+#### 5. ImGui Interface
 Two non-collapsible panels appear in inspection mode:
 - **Left Panel** (Scene Information):
   - Camera position, direction, yaw, pitch
@@ -128,6 +135,7 @@ Two non-collapsible panels appear in inspection mode:
   - Entity count, material count, total triangles
   - Hovered and selected entity IDs
   - Render information (resolution, backend, device)
+  - Accumulation status and sample count
   - Controls hint
   
 - **Right Panel** (Entity Inspector):
@@ -186,11 +194,20 @@ Represents individual objects:
 - `BuildBLAS()` - Create Bottom-Level Acceleration Structure
 - Material and transform properties
 
+#### Film Class (`Film.h/Film.cpp`)
+Manages progressive sample accumulation:
+- `Reset()` - Clear accumulated samples (called when camera stops moving)
+- `IncrementSampleCount()` - Track the number of accumulated samples
+- `DevelopToOutput()` - Average accumulated colors and output final image
+- `Resize()` - Handle window resize events
+- Internal buffers for accumulated color and sample counts
+
 #### Shader (`shaders/shader.hlsl`)
 HLSL ray tracing shaders:
-- `RayGenMain` - Generate primary rays from camera
+- `RayGenMain` - Generate primary rays from camera, accumulate samples to film buffers
 - `MissMain` - Sky gradient for missed rays
 - `ClosestHitMain` - Shading with material properties and hover highlighting
+- Writes to both immediate output (for camera movement) and accumulation buffers (for stationary views)
 
 ### Adding New Entities
 
@@ -224,16 +241,28 @@ Material(
 - **Acceleration Structures**: Uses hardware ray tracing with BLAS per entity and a single TLAS
 - **Resource Bindings**:
   - Space 0: Acceleration Structure (TLAS)
-  - Space 1: Output image (UAV)
+  - Space 1: Output image (UAV) - immediate rendering output
   - Space 2: Camera info (constant buffer)
   - Space 3: Materials (structured buffer)
   - Space 4: Hover info (constant buffer)
-- **Ray-Sphere Intersection**: Approximate bounding sphere per entity for fast CPU picking
-- **Coordinate Systems**: Matches GPU ray generation for pixel-perfect hover detection
+  - Space 5: Entity ID output (UAV) - for pixel-perfect entity picking
+  - Space 6: Accumulated color (UAV) - progressive accumulation buffer
+  - Space 7: Accumulated samples (UAV) - sample count per pixel
+- **Dual Output Mode**: 
+  - Camera enabled: Shows immediate render output from space1
+  - Camera disabled: Shows accumulated/averaged output for progressive refinement
+- **Entity Picking**: Uses GPU-rendered ID buffer (space5) for accurate cursor-based entity selection
+
+### Performance Considerations
+
+- **GPU Readback**: Entity ID picking uses synchronous GPU readback which may cause minor stalls
+- **CPU-side Film Development**: The `DevelopToOutput()` method currently runs on CPU; consider implementing a compute shader for better performance
+- **Sample Accumulation**: Accumulation happens in the shader every frame; when camera is moving, these writes are unused overhead
 
 ### Known Limitations
 
-- **Approximate Hover Detection**: Uses bounding spheres instead of precise mesh intersection
 - **Simple Lighting**: Placeholder normal (up vector) for diffuse shading
+- **No Anti-aliasing**: Single sample per pixel per frame (can be improved with jittered sampling)
 - **Static Scenes**: Animation requires manual `UpdateInstances()` calls
 - **Single Window**: ImGui context supports only one window at a time
+- **No Tone Mapping**: Accumulated colors are directly averaged without tone mapping or exposure control

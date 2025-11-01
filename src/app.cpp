@@ -172,6 +172,7 @@ void Application::OnInit() {
 
     // Initialize camera as DISABLED to avoid cursor conflicts with multiple windows
     camera_enabled_ = false;
+    last_camera_enabled_ = false;
     hovered_entity_id_ = -1; // No entity hovered initially
     selected_entity_id_ = -1; // No entity selected initially
     mouse_x_ = 0.0;
@@ -225,6 +226,9 @@ void Application::OnInit() {
 
     // Build acceleration structures
     scene_->BuildAccelerationStructures();
+
+    // Create film for accumulation
+    film_ = std::make_unique<Film>(core_.get(), window_->GetWidth(), window_->GetHeight());
 
     core_->CreateBuffer(sizeof(CameraObject), grassland::graphics::BUFFER_TYPE_DYNAMIC, &camera_object_buffer_);
     
@@ -281,6 +285,8 @@ void Application::OnInit() {
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space3 - materials
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_UNIFORM_BUFFER, 1);          // space4 - hover info
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space5 - entity ID output
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space6 - accumulated color
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space7 - accumulated samples
     program_->Finalize();
 }
 
@@ -292,6 +298,7 @@ void Application::OnClose() {
     closest_hit_shader_.reset();
 
     scene_.reset();
+    film_.reset();
 
     color_image_.reset();
     entity_id_image_.reset();
@@ -348,6 +355,19 @@ void Application::OnUpdate() {
         // Process keyboard input to move camera
         ProcessInput();
         
+        // Detect camera state change and reset accumulation if camera started moving
+        if (camera_enabled_ != last_camera_enabled_) {
+            if (camera_enabled_) {
+                // Camera just got enabled - will be moving, so prepare for reset when it stops
+                grassland::LogInfo("Camera enabled - accumulation will reset when camera stops");
+            } else {
+                // Camera just got disabled - reset accumulation for new stationary view
+                film_->Reset();
+                grassland::LogInfo("Camera disabled - starting accumulation");
+            }
+            last_camera_enabled_ = camera_enabled_;
+        }
+        
         // Update which entity is being hovered
         UpdateHoveredEntity();
         
@@ -369,6 +389,38 @@ void Application::OnUpdate() {
         // For now, entities are static. You can update their transforms and call:
         // scene_->UpdateInstances();
     }
+}
+
+void Application::ApplyHoverHighlight(grassland::graphics::Image* image) {
+    // Apply hover highlighting by modifying pixels where entity ID matches hovered entity
+    // This is done as a CPU-side post-process so it doesn't affect accumulation
+    
+    int width = window_->GetWidth();
+    int height = window_->GetHeight();
+    size_t pixel_count = width * height;
+    
+    // Download current image
+    std::vector<float> image_data(pixel_count * 4);
+    image->DownloadData(image_data.data());
+    
+    // Download entity ID buffer
+    std::vector<int32_t> entity_ids(pixel_count);
+    entity_id_image_->DownloadData(entity_ids.data());
+    
+    // Apply highlight to pixels matching hovered entity
+    float highlight_factor = 0.4f; // Blend factor for white highlight
+    for (size_t i = 0; i < pixel_count; i++) {
+        if (entity_ids[i] == hovered_entity_id_) {
+            // Lerp towards white (1, 1, 1) by highlight_factor
+            image_data[i * 4 + 0] = image_data[i * 4 + 0] * (1.0f - highlight_factor) + 1.0f * highlight_factor;
+            image_data[i * 4 + 1] = image_data[i * 4 + 1] * (1.0f - highlight_factor) + 1.0f * highlight_factor;
+            image_data[i * 4 + 2] = image_data[i * 4 + 2] * (1.0f - highlight_factor) + 1.0f * highlight_factor;
+            // Keep alpha unchanged
+        }
+    }
+    
+    // Upload modified image
+    image->UploadData(image_data.data());
 }
 
 void Application::RenderInfoOverlay() {
@@ -439,6 +491,18 @@ void Application::RenderInfoOverlay() {
     ImGui::Text("Backend: %s", 
                 core_->API() == grassland::graphics::BACKEND_API_VULKAN ? "Vulkan" : "D3D12");
     ImGui::Text("Device: %s", core_->DeviceName().c_str());
+    
+    ImGui::Spacing();
+    
+    // Accumulation Information
+    ImGui::SeparatorText("Accumulation");
+    if (!camera_enabled_) {
+        ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Status: Active");
+        ImGui::Text("Samples: %d", film_->GetSampleCount());
+    } else {
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Status: Paused");
+        ImGui::Text("(Disable camera to accumulate)");
+    }
 
     ImGui::Spacing();
 
@@ -602,7 +666,22 @@ void Application::OnRender() {
     command_context->CmdBindResources(3, { scene_->GetMaterialsBuffer() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(4, { hover_info_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(5, { entity_id_image_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(6, { film_->GetAccumulatedColorImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(7, { film_->GetAccumulatedSamplesImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdDispatchRays(window_->GetWidth(), window_->GetHeight(), 1);
+    
+    // When camera is disabled, increment sample count and use accumulated image
+    grassland::graphics::Image* display_image = color_image_.get();
+    if (!camera_enabled_) {
+        film_->IncrementSampleCount();
+        film_->DevelopToOutput();
+        display_image = film_->GetOutputImage();
+    }
+    
+    // Apply hover highlighting as post-process (doesn't affect accumulation)
+    if (hovered_entity_id_ >= 0 && !camera_enabled_) {
+        ApplyHoverHighlight(display_image);
+    }
     
     // Render ImGui overlay
     window_->BeginImGuiFrame();
@@ -610,6 +689,6 @@ void Application::OnRender() {
     RenderEntityPanel();
     window_->EndImGuiFrame();
     
-    command_context->CmdPresent(window_.get(), color_image_.get());
+    command_context->CmdPresent(window_.get(), display_image);
     core_->SubmitCommandContext(command_context.get());
 }

@@ -22,6 +22,8 @@ ConstantBuffer<CameraInfo> camera_info : register(b0, space2);
 StructuredBuffer<Material> materials : register(t0, space3);
 ConstantBuffer<HoverInfo> hover_info : register(b0, space4);
 RWTexture2D<int> entity_id_output : register(u0, space5);
+RWTexture2D<float4> accumulated_color : register(u0, space6);
+RWTexture2D<int> accumulated_samples : register(u0, space7);
 
 struct RayPayload {
   float3 color;
@@ -54,11 +56,21 @@ struct RayPayload {
 
   TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
 
-  output[DispatchRaysIndex().xy] = float4(payload.color, 1);
+  uint2 pixel_coords = DispatchRaysIndex().xy;
+  
+  // Write to immediate output (for camera movement mode)
+  output[pixel_coords] = float4(payload.color, 1);
   
   // Write entity ID to the ID buffer
   // If no hit, write -1; otherwise write the instance ID
-  entity_id_output[DispatchRaysIndex().xy] = payload.hit ? (int)payload.instance_id : -1;
+  entity_id_output[pixel_coords] = payload.hit ? (int)payload.instance_id : -1;
+  
+  // Accumulate color for progressive rendering (when camera is stationary)
+  float4 prev_color = accumulated_color[pixel_coords];
+  int prev_samples = accumulated_samples[pixel_coords];
+  
+  accumulated_color[pixel_coords] = prev_color + float4(payload.color, 1);
+  accumulated_samples[pixel_coords] = prev_samples + 1;
 }
 
 [shader("miss")] void MissMain(inout RayPayload payload) {
@@ -84,14 +96,8 @@ struct RayPayload {
   float3 light_dir = normalize(float3(1, 1, 1));
   float ndotl = max(0.0, dot(world_normal, light_dir));
   
-  // Apply material color
+  // Apply material color (NO hover highlighting here - done in post-process)
   float3 diffuse = mat.base_color * (0.3 + 0.7 * ndotl);
-  
-  // Highlight if this is the hovered entity
-  if ((int)material_idx == hover_info.hovered_entity_id) {
-    // Add bright white highlight
-    diffuse = lerp(diffuse, float3(1.0, 1.0, 1.0), 0.4);
-  }
   
   payload.color = diffuse;
 }

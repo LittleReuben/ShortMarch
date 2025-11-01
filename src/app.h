@@ -1,6 +1,7 @@
 #pragma once
 #include "long_march.h"
 #include "Scene.h"
+#include "Film.h"
 #include <memory>
 
 struct CameraObject {
@@ -32,6 +33,9 @@ private:
 
     // Scene management
     std::unique_ptr<Scene> scene_;
+    
+    // Film for accumulation
+    std::unique_ptr<Film> film_;
 
     // Camera
     std::unique_ptr<grassland::graphics::Buffer> camera_object_buffer_;
@@ -66,6 +70,7 @@ private:
     void OnMouseMove(double xpos, double ypos); // Mouse event handler
     void OnMouseButton(int button, int action, int mods, double xpos, double ypos); // Mouse button event handler
     void RenderInfoOverlay(); // Render the info overlay
+    void ApplyHoverHighlight(grassland::graphics::Image* image); // Apply hover highlighting as post-process
 
     float yaw_;
     float pitch_;
@@ -74,6 +79,7 @@ private:
     float mouse_sensitivity_;
     bool first_mouse_; // Prevents camera jump on first mouse input
     bool camera_enabled_; // Whether camera movement is enabled
+    bool last_camera_enabled_; // Track camera state changes to reset accumulation
     
     // Mouse hovering
     double mouse_x_;
