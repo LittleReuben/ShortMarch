@@ -8,12 +8,10 @@ struct Material {
   float3 base_color;
   float roughness;
   float metallic;
-  float padding[3];
 };
 
 struct HoverInfo {
   int hovered_entity_id;
-  float padding[3];
 };
 
 RaytracingAccelerationStructure as : register(t0, space0);

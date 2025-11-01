@@ -43,7 +43,6 @@ private:
     // Hover info buffer
     struct HoverInfo {
         int hovered_entity_id;
-        float padding[3];
     };
     std::unique_ptr<grassland::graphics::Buffer> hover_info_buffer_;
 
