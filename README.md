@@ -127,13 +127,28 @@ The demo supports two modes:
 - **Smart Reset**: Accumulation automatically resets when camera movement stops
 - **Real-time Feedback**: Sample count displayed in UI shows accumulation progress
 
-#### 5. ImGui Interface
+#### 5. Pixel Inspector
+- **Real-time Color Sampling**: Shows RGB values of the pixel under the cursor
+- **Original Color Display**: Values shown are before highlighting is applied (matches saved screenshots)
+- **Multiple Formats**: Both normalized float (0.0-1.0) and 8-bit (0-255) values
+- **Color Preview**: Visual color swatch shows the exact pixel color
+- **Mouse Position**: Displays current cursor coordinates
+
+#### 6. Screenshot Capture
+- **Ctrl+S Shortcut**: Save accumulated output as PNG image
+- **Automatic Naming**: Timestamped filenames (e.g., `screenshot_20251101_225009.png`)
+- **Full Path Logging**: Console shows complete absolute path where image is saved
+- **Pure Rendering**: Saved images exclude UI overlays and hover highlights
+- **High Quality**: Captures the fully accumulated, noise-free render
+
+#### 7. ImGui Interface
 Two non-collapsible panels appear in inspection mode:
 - **Left Panel** (Scene Information):
   - Camera position, direction, yaw, pitch
   - Speed and sensitivity settings
   - Entity count, material count, total triangles
   - Hovered and selected entity IDs
+  - **Pixel Inspector**: Mouse position and RGB color values
   - Render information (resolution, backend, device)
   - Accumulation status and sample count
   - Controls hint
@@ -164,6 +179,21 @@ Two non-collapsible panels appear in inspection mode:
    - View detailed information in the right panel
    - Or use the dropdown menu to select entities manually
 
+4. **Inspect Pixels**:
+   - Hover over any part of the rendered image
+   - View RGB color values in the Pixel Inspector section
+   - Values shown are the original rendered colors (before highlighting)
+
+5. **Hide UI** (inspection mode only):
+   - Hold **Tab** key to temporarily hide all UI panels
+   - Useful for taking clean screenshots or viewing full render
+
+6. **Save Screenshots**:
+   - Press **Ctrl+S** to save the current accumulated output as PNG
+   - Images saved with timestamp in filename
+   - Console shows full path where image is saved
+   - Saved images are clean (no UI, no highlights)
+
 ### Code Architecture
 
 #### Application Class (`app.h/app.cpp`)
@@ -177,9 +207,11 @@ The main application class manages:
 Key methods:
 - `OnInit()` - Initialize graphics, create scene, load entities
 - `OnUpdate()` - Process input, update hover detection, upload GPU buffers
-- `OnRender()` - Execute ray tracing, render ImGui overlays
+- `OnRender()` - Execute ray tracing, apply post-process highlighting, render ImGui overlays
 - `OnClose()` - Clean up resources
-- `UpdateHoveredEntity()` - CPU-side ray casting for entity picking
+- `UpdateHoveredEntity()` - GPU-based entity ID and pixel color readback for accurate picking
+- `ApplyHoverHighlight()` - Post-process highlighting applied after accumulation
+- `SaveAccumulatedOutput()` - Save clean accumulated render to PNG file
 
 #### Scene Class (`Scene.h/Scene.cpp`)
 Manages the scene graph:
@@ -204,10 +236,10 @@ Manages progressive sample accumulation:
 
 #### Shader (`shaders/shader.hlsl`)
 HLSL ray tracing shaders:
-- `RayGenMain` - Generate primary rays from camera, accumulate samples to film buffers
+- `RayGenMain` - Generate primary rays from camera, accumulate samples to film buffers, write entity IDs
 - `MissMain` - Sky gradient for missed rays
-- `ClosestHitMain` - Shading with material properties and hover highlighting
-- Writes to both immediate output (for camera movement) and accumulation buffers (for stationary views)
+- `ClosestHitMain` - Shading with material properties (highlighting done in post-process)
+- Writes to multiple outputs: color, entity ID, and accumulation buffers
 
 ### Adding New Entities
 
@@ -251,12 +283,27 @@ Material(
 - **Dual Output Mode**: 
   - Camera enabled: Shows immediate render output from space1
   - Camera disabled: Shows accumulated/averaged output for progressive refinement
-- **Entity Picking**: Uses GPU-rendered ID buffer (space5) for accurate cursor-based entity selection
+- **Entity Picking**: Uses GPU-rendered ID buffer (space5) for pixel-perfect cursor-based entity selection
+- **Post-Process Highlighting**: Hover highlights applied after accumulation, ensuring clean saved screenshots
+
+### Keyboard Shortcuts
+
+| Key Combination | Action | Mode |
+|----------------|--------|------|
+| **Right Click** | Toggle camera mode on/off | Any |
+| **W/A/S/D** | Move camera forward/left/backward/right | Camera mode |
+| **Space** | Move camera up | Camera mode |
+| **Shift** | Move camera down | Camera mode |
+| **Mouse** | Look around | Camera mode |
+| **Left Click** | Select hovered entity | Inspection mode |
+| **Tab** (hold) | Hide UI panels | Inspection mode |
+| **Ctrl+S** | Save screenshot as PNG | Inspection mode |
 
 ### Performance Considerations
 
-- **GPU Readback**: Entity ID picking uses synchronous GPU readback which may cause minor stalls
+- **GPU Readback**: Entity ID and pixel color picking use synchronous GPU readback which may cause minor stalls
 - **CPU-side Film Development**: The `DevelopToOutput()` method currently runs on CPU; consider implementing a compute shader for better performance
+- **CPU-side Post-Highlighting**: The `ApplyHoverHighlight()` method downloads and uploads full images each frame when hovering
 - **Sample Accumulation**: Accumulation happens in the shader every frame; when camera is moving, these writes are unused overhead
 
 ### Known Limitations
@@ -266,3 +313,4 @@ Material(
 - **Static Scenes**: Animation requires manual `UpdateInstances()` calls
 - **Single Window**: ImGui context supports only one window at a time
 - **No Tone Mapping**: Accumulated colors are directly averaged without tone mapping or exposure control
+- **Performance Overhead**: Post-process highlighting and pixel inspector use full-image GPU readbacks
