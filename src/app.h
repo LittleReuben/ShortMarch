@@ -55,6 +55,15 @@ private:
     std::unique_ptr<grassland::graphics::Image> color_image_;
     std::unique_ptr<grassland::graphics::Image> entity_id_image_; // Entity ID buffer for accurate picking
     std::unique_ptr<grassland::graphics::RayTracingProgram> program_;
+    // Persistent dummy resources to avoid null bindings
+    std::unique_ptr<grassland::graphics::Image> dummy_image_;
+    std::unique_ptr<grassland::graphics::Buffer> dummy_buffer_;
+    std::unique_ptr<grassland::graphics::Sampler> dummy_sampler_;
+    
+    std::unique_ptr<grassland::graphics::Buffer> sample_count_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> offsets_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> vertices_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> triangles_buffer_;
     bool alive_{ false };
 
     void ProcessInput(); // Helper function for keyboard input

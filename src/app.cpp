@@ -16,7 +16,7 @@
 namespace {
 #include "built_in_shaders.inl"
 }
-
+const int MAX_TEXTURE_COUNT = 64;
 Application::Application(grassland::graphics::BackendAPI api) {
     grassland::graphics::CreateCore(api, grassland::graphics::Core::Settings{}, &core_);
     core_->InitializeLogicalDeviceAutoSelect(true);
@@ -123,7 +123,6 @@ void Application::OnMouseMove(double xpos, double ypos) {
     float yoffset = last_y_ - (float)ypos; // Reversed since y-coordinates go from bottom to top
     last_x_ = (float)xpos;
     last_y_ = (float)ypos;
-
     xoffset *= mouse_sensitivity_;
     yoffset *= mouse_sensitivity_;
 
@@ -225,7 +224,7 @@ void Application::OnInit() {
     {
         auto ground = std::make_shared<Entity>(
             "meshes/cube.obj",
-            Material(glm::vec3(0.8f, 0.8f, 0.8f), 0.8f, 0.0f),
+            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f),
             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), 
                       glm::vec3(10.0f, 0.1f, 10.0f))
         );
@@ -237,7 +236,7 @@ void Application::OnInit() {
         auto red_sphere = std::make_shared<Entity>(
             "meshes/octahedron.obj",
             Material(glm::vec3(1.0f, 0.2f, 0.2f), 0.3f, 0.0f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.5f, 0.0f))
+            glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.1f, 0.0f))
         );
         scene_->AddEntity(red_sphere);
     }
@@ -246,8 +245,8 @@ void Application::OnInit() {
     {
         auto green_sphere = std::make_shared<Entity>(
             "meshes/octahedron.obj",
-            Material(glm::vec3(0.2f, 1.0f, 0.2f), 0.2f, 0.8f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f))
+            Material(glm::vec3(0.2f, 1.0f, 0.2f), 0.2f, 0.0f),
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, 0.0f))
         );
         scene_->AddEntity(green_sphere);
     }
@@ -260,6 +259,35 @@ void Application::OnInit() {
             glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.5f, 0.0f))
         );
         scene_->AddEntity(blue_cube);
+    }
+
+    {
+        auto small_cube = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, -0.75f, 0.0f)), 
+                      glm::vec3(0.1f, 0.1f, 0.1f))
+        );
+        scene_->AddEntity(small_cube);
+    }
+
+    {
+        auto white_cube = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 2.0f, 0.0f)), 
+                      glm::vec3(10.0f, 0.1f, 10.0f))
+        );
+        scene_->AddEntity(white_cube);
+    }
+
+    {
+        auto yellow_cube = std::make_shared<Entity>(
+            "meshes/MeshResources/Qilin/qilin.obj",
+            Material(glm::vec3(1.0f, 0.9f, 0.2f), 0.2f, 0.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
+        );
+        scene_->AddEntity(yellow_cube);
     }
 
     // Build acceleration structures
@@ -325,7 +353,110 @@ void Application::OnInit() {
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space5 - entity ID output
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space6 - accumulated color
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space7 - accumulated samples
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_UNIFORM_BUFFER, 1);          // space8 - frame count
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 3);          // space9 - vertices, triangles
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 3);          // space10 - UV buffer, Material ID Buffer, index Buffer
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space11 - Instance Metadata Buffer
+    
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_IMAGE, MAX_TEXTURE_COUNT);   // space12 - Texture Buffer
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);               // space13 - Sampler for textures
+    
     program_->Finalize();
+
+    // Create a small buffer to hold the sample count (space8 expects a uniform buffer)
+    uint32_t initial_sample_count = static_cast<uint32_t>(film_->GetSampleCount());
+    core_->CreateBuffer(16, grassland::graphics::BUFFER_TYPE_DYNAMIC, &sample_count_buffer_);
+    sample_count_buffer_->UploadData(&initial_sample_count, sizeof(uint32_t), 0);
+
+    // Create persistent dummy resources (do once, reuse each frame)
+    // Dummy buffer (used as fallback for missing storage buffers)
+    uint32_t placeholder = 0;
+    core_->CreateBuffer(sizeof(uint32_t), grassland::graphics::BUFFER_TYPE_STATIC, &dummy_buffer_);
+    dummy_buffer_->UploadData(&placeholder, sizeof(uint32_t), 0);
+
+    // Dummy image (1x1) - use an 8-bit RGBA UNORM format to match typical textures
+    uint8_t clear_pixel_u8[4] = {0, 0, 0, 0};
+    core_->CreateImage(1, 1, grassland::graphics::IMAGE_FORMAT_R8G8B8A8_UNORM, &dummy_image_);
+    dummy_image_->UploadData(clear_pixel_u8);
+
+    // Create a default sampler
+    grassland::graphics::SamplerInfo sampler_info{};
+    sampler_info.min_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    sampler_info.mag_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    sampler_info.mip_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    sampler_info.address_mode_u = grassland::graphics::ADDRESS_MODE_REPEAT;
+    sampler_info.address_mode_v = grassland::graphics::ADDRESS_MODE_REPEAT;
+    sampler_info.address_mode_w = grassland::graphics::ADDRESS_MODE_REPEAT;
+    core_->CreateSampler(sampler_info, &dummy_sampler_);
+    
+    // Create aggregated faces and triangle index buffers from scene entities
+    {
+        std::vector<uint32_t> index_begin;
+        std::vector<glm::vec3> aggregated_vertices;
+        std::vector<uint32_t> aggregated_triangles;
+
+        int vertex_offset = 0;
+        for (const auto &entity : scene_->GetEntities()) {
+            index_begin.push_back(aggregated_triangles.size() / 3);
+            if (!entity) continue;
+            // Download vertex positions from the entity's GPU vertex buffer (if present).
+            auto *vb = entity->GetVertexBuffer();
+            size_t vcount = 0;
+            if (vb && vb->Size() >= sizeof(glm::vec3)) {
+                vcount = vb->Size() / sizeof(glm::vec3);
+                std::vector<glm::vec3> tmp(vcount);
+                // Download entire buffer content
+                vb->DownloadData(tmp.data(), vb->Size(), 0);
+
+                // Transform vertices into world space using entity transform before aggregating
+                const glm::mat4 &xform = entity->GetTransform();
+                for (size_t i = 0; i < vcount; ++i) {
+                    glm::vec4 wp = xform * glm::vec4(tmp[i], 1.0f);
+                    aggregated_vertices.push_back(glm::vec3(wp));
+                }
+            }
+
+            // Download index buffer and append, applying vertex offset so indices refer to the aggregated vertex array.
+            auto *ib = entity->GetIndexBuffer();
+            if (ib && ib->Size() >= sizeof(uint32_t)) {
+                size_t icount = ib->Size() / sizeof(uint32_t);
+                std::vector<uint32_t> itmp(icount);
+                ib->DownloadData(itmp.data(), ib->Size(), 0);
+                for (size_t i = 0; i < icount; ++i) {
+                    aggregated_triangles.push_back(static_cast<uint32_t>(itmp[i] + vertex_offset));
+                }
+            }
+
+            vertex_offset += static_cast<int>(vcount);
+        }
+
+        // Ensure non-zero buffers (create minimal buffers if scene empty to avoid zero-sized GPU resources)
+        if (index_begin.empty()) {
+            index_begin.push_back(0u);
+        }
+        if (aggregated_vertices.empty()) {
+            aggregated_vertices.push_back(glm::vec3(0.0f));
+        }
+        if (aggregated_triangles.empty()) {
+            aggregated_triangles.push_back(0u);
+            aggregated_triangles.push_back(0u);
+            aggregated_triangles.push_back(0u);
+        }
+
+        // Upload aggregated data to GPU buffers bound to the raytracing program (space9)
+        core_->CreateBuffer(index_begin.size() * sizeof(uint32_t),
+                            grassland::graphics::BUFFER_TYPE_STATIC, &offsets_buffer_);
+        offsets_buffer_->UploadData(index_begin.data(), index_begin.size() * sizeof(uint32_t));
+
+        core_->CreateBuffer(aggregated_vertices.size() * sizeof(glm::vec3),
+                            grassland::graphics::BUFFER_TYPE_STATIC, &vertices_buffer_);
+        vertices_buffer_->UploadData(aggregated_vertices.data(), aggregated_vertices.size() * sizeof(glm::vec3));
+
+        core_->CreateBuffer(aggregated_triangles.size() * sizeof(uint32_t),
+                            grassland::graphics::BUFFER_TYPE_STATIC, &triangles_buffer_);
+        triangles_buffer_->UploadData(aggregated_triangles.data(), aggregated_triangles.size() * sizeof(uint32_t));
+    }
+
 }
 
 void Application::OnClose() {
@@ -728,14 +859,52 @@ void Application::RenderEntityPanel() {
         
         // Material information
         ImGui::SeparatorText("Material");
-        Material mat = entity->GetMaterial();
-        
-        ImGui::Text("Base Color:");
-        ImGui::ColorEdit3("##base_color", &mat.base_color[0], ImGuiColorEditFlags_NoInputs);
-        ImGui::Text("  RGB: (%.2f, %.2f, %.2f)", mat.base_color.r, mat.base_color.g, mat.base_color.b);
-        
-        ImGui::Text("Roughness: %.2f", mat.roughness);
-        ImGui::Text("Metallic: %.2f", mat.metallic);
+        if (entity->HasMTLMaterials()) {
+            ImGui::Text("Materials from MTL: %zu", entity->GetMaterials().size());
+            
+            // Display first material
+            auto& materials = entity->GetMaterials();
+            if (!materials.empty()) {
+                const Material& mat = materials[0];
+                auto& name_map = entity->GetMaterialNameMap();
+                std::string mat_name = "Material 0";
+                for (const auto& [name, idx] : name_map) {
+                    if (idx == 0) {
+                        mat_name = name;
+                        break;
+                    }
+                }
+                ImGui::Text("Material Name: %s", mat_name.c_str());
+                ImGui::Text("Base Color:");
+                ImGui::ColorEdit3("##base_color", (float*)&mat.base_color[0], ImGuiColorEditFlags_NoInputs);
+                ImGui::Text("  RGB: (%.2f, %.2f, %.2f)", mat.base_color.r, mat.base_color.g, mat.base_color.b);
+                ImGui::Text("Roughness: %.2f", mat.roughness);
+                ImGui::Text("Metallic: %.2f", mat.metallic);
+                
+                if (mat.HasTexture()) {
+                    ImGui::Text("Texture: %s", mat.GetTexturePath().c_str());
+                    ImGui::Text("Texture Index: %d", mat.texture_index);
+                } else {
+                    ImGui::Text("Texture: None");
+                }
+            }
+        } else {
+            // Display default material
+            const Material& mat = entity->GetDefaultMaterial();
+            ImGui::Text("Using default material");
+            ImGui::Text("Base Color:");
+            ImGui::ColorEdit3("##base_color", (float*)&mat.base_color[0], ImGuiColorEditFlags_NoInputs);
+            ImGui::Text("  RGB: (%.2f, %.2f, %.2f)", mat.base_color.r, mat.base_color.g, mat.base_color.b);
+            ImGui::Text("Roughness: %.2f", mat.roughness);
+            ImGui::Text("Metallic: %.2f", mat.metallic);
+            
+            if (mat.HasTexture()) {
+                ImGui::Text("Texture: %s", mat.GetTexturePath().c_str());
+                ImGui::Text("Texture Index: %d", mat.texture_index);
+            } else {
+                ImGui::Text("Texture: None");
+            }
+        }
         
         ImGui::Spacing();
         
@@ -794,6 +963,36 @@ void Application::OnRender() {
     command_context->CmdBindResources(5, { entity_id_image_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(6, { film_->GetAccumulatedColorImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(7, { film_->GetAccumulatedSamplesImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    uint32_t sc = static_cast<uint32_t>(film_->GetSampleCount());
+    sample_count_buffer_->UploadData(&sc, sizeof(uint32_t), 0);
+    command_context->CmdBindResources(8, { sample_count_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    std::vector<grassland::graphics::Buffer*> buffers = {
+        offsets_buffer_.get(),
+        vertices_buffer_.get(), 
+        triangles_buffer_.get()
+    };
+    command_context->CmdBindResources(9, buffers, grassland::graphics::BIND_POINT_RAYTRACING);
+    // use persistent dummy_buffer_
+    std::vector<grassland::graphics::Buffer*> space10_Buffers = {
+        scene_->GetGlobalUVBuffer() ? scene_->GetGlobalUVBuffer() : dummy_buffer_.get(),
+        scene_->GetGlobalMaterialIDBuffer() ? scene_->GetGlobalMaterialIDBuffer() : dummy_buffer_.get(),
+        scene_->GetGlobalIndexBuffer() ? scene_->GetGlobalIndexBuffer() : dummy_buffer_.get()
+    };
+    command_context->CmdBindResources(10, space10_Buffers, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(11, {scene_->GetInstanceMetadataBuffer()}, grassland::graphics::BIND_POINT_RAYTRACING);
+    // use persistent dummy_image_
+    std::vector<grassland::graphics::Image*> tex_list;
+    tex_list.reserve(MAX_TEXTURE_COUNT);
+    for (int i = 0; i < scene_->GetTextureCount(); ++i) {
+        tex_list.push_back(scene_->GetTexture(i));
+    }
+    for(int i = scene_->GetTextureCount(); i < MAX_TEXTURE_COUNT; ++i){
+        tex_list.push_back(dummy_image_.get());
+    }
+    // 最后填充占位图（或按你希望的位置插入）
+    command_context->CmdBindResources(12, tex_list, grassland::graphics::BIND_POINT_RAYTRACING);
+    // Bind sampler (space13)
+    command_context->CmdBindResources(13, { dummy_sampler_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdDispatchRays(window_->GetWidth(), window_->GetHeight(), 1);
     
     // When camera is disabled, increment sample count and use accumulated image
