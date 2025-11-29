@@ -232,72 +232,80 @@ void Application::OnInit() {
     }
 
     // Red sphere (using octahedron as sphere substitute)
-    {
-        auto red_sphere = std::make_shared<Entity>(
-            "meshes/octahedron.obj",
-            Material(glm::vec3(1.0f, 0.2f, 0.2f), 0.3f, 0.0f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.1f, 0.0f))
-        );
-        scene_->AddEntity(red_sphere);
-    }
+    // {
+    //     auto red_sphere = std::make_shared<Entity>(
+    //         "meshes/octahedron.obj",
+    //         Material(glm::vec3(1.0f, 0.2f, 0.2f), 0.0f, 1.0f),
+    //         glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.1f, 0.0f))
+    //     );
+    //     scene_->AddEntity(red_sphere);
+    // }
 
     // Green metallic sphere
-    {
-        auto green_sphere = std::make_shared<Entity>(
-            "meshes/octahedron.obj",
-            Material(glm::vec3(0.2f, 1.0f, 0.2f), 0.2f, 0.0f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, 0.0f))
-        );
-        scene_->AddEntity(green_sphere);
-    }
+    // {
+    //     auto green_sphere = std::make_shared<Entity>(
+    //         "meshes/octahedron.obj",
+    //         Material(glm::vec3(0.2f, 1.0f, 0.2f), 0.0f, 1.0f),
+    //         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, 0.0f))
+    //     );
+    //     scene_->AddEntity(green_sphere);
+    // }
 
     // Blue cube
-    {
-        auto blue_cube = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.2f, 0.2f, 1.0f), 0.5f, 0.0f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.5f, 0.0f))
-        );
-        scene_->AddEntity(blue_cube);
-    }
+    // {
+    //     auto blue_cube = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.2f, 0.2f, 1.0f), 0.0f, 1.0f),
+    //         glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.5f, 0.0f))
+    //     );
+    //     scene_->AddEntity(blue_cube);
+    // }
 
-    {
-        auto small_cube = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, -0.75f, 0.0f)), 
-                      glm::vec3(0.1f, 0.1f, 0.1f))
-        );
-        scene_->AddEntity(small_cube);
-    }
+    // {
+    //     auto small_cube = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, -0.75f, 0.0f)), 
+    //                   glm::vec3(0.1f, 0.1f, 0.1f))
+    //     );
+    //     scene_->AddEntity(small_cube);
+    // }
+    // for (int i=-2; i<=+2; i++)
+    //     for (int j=-2; j<=+2; j++) {
+    //         auto cube = std::make_shared<Entity>("meshes/cube.obj", 
+    //             Material(glm::vec3((4 + i) / 7.0f, (4 + j) / 7.0f, (8 + i + j) / 14.0f), (i + 2) / 4.0f, (j + 2) / 4.0f), 
+    //             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(i * 2, 0.1f, j * 2)), 
+    //             glm::vec3(0.5f, 0.5f, 0.5f)));
+    //         scene_->AddEntity(cube);
+    //     }
 
     {
         auto white_cube = std::make_shared<Entity>(
             "meshes/cube.obj",
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(0.8f, 0.8f, 0.8f)),
             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 5.0f, 0.0f)), 
                       glm::vec3(20.0f, 0.1f, 20.0f))
         );
         scene_->AddEntity(white_cube);
     }
 
-    // {
-    //     auto Qilin = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Qilin/qilin.obj",
-    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
-    //     );
-    //     scene_->AddEntity(Qilin);
-    // }
-
     {
-        auto RockSet = std::make_shared<Entity>(
-            "meshes/MeshResources/RockSet/RockSet.obj",
+        auto Qilin = std::make_shared<Entity>(
+            "meshes/MeshResources/Qilin/qilin.obj",
             Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(1.0f, 1.0f, 1.0f)) // adjust offset as needed
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
         );
-        scene_->AddEntity(RockSet);
+        scene_->AddEntity(Qilin);
     }
+
+    // {
+    //     auto RockSet = std::make_shared<Entity>(
+    //         "meshes/MeshResources/RockSet/RockSet.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(1.0f, 1.0f, 1.0f)) // adjust offset as needed
+    //     );
+    //     scene_->AddEntity(RockSet);
+    // }
     
     // {
     //     auto Eyeball = std::make_shared<Entity>(

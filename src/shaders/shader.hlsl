@@ -103,7 +103,6 @@ uint tea(uint val0, uint val1) {
   ray.TMax = t_max;
 
   TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
-
   // uint2 pixel_coords = DispatchRaysIndex().xy;
   
   // Write to immediate output (for camera movement mode)
@@ -133,18 +132,27 @@ static float p = 0.2;
 static float PI = 3.1415926536;
 
 float sqr(float x) { return x * x; }
+float3 calcF0(Material mat) {
+  return lerp(float3 (0.04, 0.04, 0.04), mat. base_color, mat. metallic);
+}
+float calcD(float alpha, float n_h) {
+  return sqr(alpha) / (PI * sqr(sqr(n_h) * sqr(alpha) + (1 - sqr(n_h))));
+}
 float3 BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n) {
   float3 h = normalize(oi + oo);
   float n_oi = dot(n, oi), n_oo = dot(n, oo), n_h = dot(n, h);
   if (n_oi <= 0.0f || n_oo <= 0.0f) return float3 (0.0, 0.0, 0.0);
-  float3 F0 = lerp(float3 (0.04, 0.04, 0.04), mat. base_color, mat. metallic);
+  float3 F0 = calcF0(mat);
   float3 F = F0 + (float3 (1.0, 1.0, 1.0) - F0) * pow(1 - dot(oo, h), 5);
   float alpha = sqr(mat. roughness);
-  float D = sqr(alpha) / (PI * sqr(sqr(n_h) * (sqr(alpha) - 1) + 1) + 1e-7);
+  float D = calcD(alpha, n_h);
   float k = sqr(alpha + 1) / 8;
   float G = n_oi / lerp(n_oi, 1.0, k) * n_oo / lerp(n_oo, 1.0, k);
   float3 fs = (1 - mat. metallic) / PI * mat. base_color * (float3(1.0, 1.0, 1.0) - F);
   return fs + F * D * G / (4 * n_oi * n_oo + 1e-7);
+}
+float luminance(float3 c) {
+  return 0.2126 * c. r + 0.7152 * c. g + 0.0722 * c. b;
 }
 
 Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr) {
@@ -182,21 +190,25 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   return mat;
 }
 
+#define assert(cond) if (!(cond)) { while (1); }
+
 [shader("closesthit")] void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr) {
-  uint material_idx = InstanceID();
+  uint material_id = InstanceID(), primitive_id = PrimitiveIndex();
   if (Rand(payload. seed) < p) {
     payload. hit = true;
-    payload. instance_id = material_idx;
-    payload. color = materials[material_idx]. emission;
+    payload. instance_id = material_id;
+    payload. color = materials[material_id]. emission;
     return ;
   }
   if (payload. depth > 20) {
     payload. color = float3 (0.0, 0.0, 0.0);
     return ;
   }
+  // Load material
+  Material mat = getMaterial(material_id, primitive_id, attr);
+  mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   // Calculate normal
-  uint primitive_id = PrimitiveIndex();
-  uint id = offset[material_idx] + primitive_id;
+  uint id = offset[material_id] + primitive_id;
   uint3 vid = triangles[id];
   float3 p0 = vertices[vid.x];
   float3 p1 = vertices[vid.y];
@@ -209,10 +221,31 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   if (abs(dot(N, B)) > 1e-6)
     B = normalize(B - dot(N, B) * N);
   float3 T = cross(N, B);
+  float3x3 M = transpose(float3x3 (T, B, N));
   // Sample a direction
-  float phi = Rand(payload. seed) * 2 * PI, cosTheta = Rand(payload. seed), sinTheta = sqrt(1 - sqr(cosTheta));
-  float3 inDir = sinTheta * (cos(phi) * B + sin(phi) * T) + cosTheta * N;
-  float3 outDir = WorldRayDirection();
+  // float phi = Rand(payload. seed) * 2 * PI, cosTheta = Rand(payload. seed), sinTheta = sqrt(1 - sqr(cosTheta));
+  // float3 inDir = sinTheta * (cos(phi) * T + sin(phi) * B) + cosTheta * N;
+  // float3 outDir = - WorldRayDirection();
+  // float P = 1 / (2 * PI);
+  float3 outDir = - WorldRayDirection(), inDir;
+  float3 F0 = calcF0(mat);
+  float p_mix = clamp(luminance(F0) + (1 - mat. roughness) * 0.1, 0.05, 0.95);
+  float alpha = sqr(mat. roughness), alpha2 = sqr(alpha);
+  if (Rand(payload. seed) <= p_mix) {
+    do {
+      float phi = Rand(payload. seed) * 2 * PI, xi = Rand(payload. seed), cosTheta = sqrt(xi / ((1 - xi) * alpha2 + xi)), sinTheta = cosTheta >= 1.0 ? 0 : sqrt(1 - sqr(cosTheta));
+      float3 h = mul(M, float3 (sinTheta * cos(phi), sinTheta * sin(phi), cosTheta));
+      inDir = h * dot(outDir, h) * 2 - outDir;
+    } while (dot(N, inDir) < 0);
+  } else {
+    float r = sqrt(Rand(payload. seed)), phi = Rand(payload. seed) * 2 * PI;
+    inDir = mul(M, float3 (r * cos(phi), r * sin(phi), sqrt(1 - sqr(r))));
+  }
+  float3 h = normalize(inDir + outDir);
+  float n_h = dot(N, h);
+  float pd = dot(N, inDir) / PI, ps = calcD(alpha, n_h) * n_h / (4 * dot(outDir, h));
+  float P = p_mix * ps + (1 - p_mix) * pd;
+
   // Bounce the ray
   RayDesc ray;
   ray. Origin = WorldRayOrigin() + WorldRayDirection() * RayTCurrent() + 1e-4 * inDir;
@@ -221,9 +254,8 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   ray. TMax = 1e4;
   payload. depth ++;
   TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
-  // Load Material
-  Material mat = getMaterial(material_idx, primitive_id, attr);
-  payload. color = (payload. color * BRDF(mat, inDir, - outDir, N) * cosTheta * 2 * PI) / (1 - p) + materials[material_idx]. emission;
+  // Calculate color
+  payload. color = payload. color * BRDF(mat, inDir, outDir, N) * dot(N, inDir) / P / (1 - p) + materials[material_id]. emission;
   payload. hit = true;
   payload. instance_id = InstanceID();
 }

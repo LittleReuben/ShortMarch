@@ -46,6 +46,8 @@ void Film::Reset() {
     grassland::LogInfo("Film accumulation reset");
 }
 
+float toneMapping(float x) { x *= 2; return x / (1 + x); }
+
 void Film::DevelopToOutput() {
     // This would ideally be done in a compute shader for efficiency
     // For now, we'll do it on the CPU (simple but potentially slow)
@@ -63,6 +65,7 @@ void Film::DevelopToOutput() {
     std::vector<float> output_colors(width_ * height_ * 4);
     for (int i = 0; i < width_ * height_ * 4; i++) {
         output_colors[i] = accumulated_colors[i] / static_cast<float>(sample_count_);
+        output_colors[i] = toneMapping(output_colors[i]);
     }
 
     // Upload to output image
