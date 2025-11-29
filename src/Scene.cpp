@@ -168,6 +168,8 @@ void Scene::UpdateMaterialsBuffer() {
 
 void Scene::AssignTextureIndices() {
     // Load all unique textures and assign indices to materials
+    int cnt = 0;
+    grassland::LogInfo("AAAAA Assigning Texture index to entity {}", cnt);
     for (auto& entity : entities_) {
         if (entity->HasMTLMaterials()) {
             // Process all materials from MTL
@@ -181,6 +183,8 @@ void Scene::AssignTextureIndices() {
                                      tex_index, i, mat.GetTexturePath());
                 }
             }
+            grassland::LogInfo("Entity {} has texture index {}", cnt, mtl_materials[0].texture_index);
+
         } else {
             // Process default material
             Material& mat = entity->GetMutableDefaultMaterial();
@@ -190,12 +194,16 @@ void Scene::AssignTextureIndices() {
                 grassland::LogInfo("Assigned texture index {} to default material with texture: {}", 
                                  tex_index, mat.GetTexturePath());
             }
+            grassland::LogInfo("Entity {} has texture index {}", cnt, mat.texture_index);
         }
+        
+        cnt++;
     }
 }
 
 int Scene::LoadTexture(const std::string& filepath) {
     // Check if already loaded
+    grassland::LogInfo("Entering Texture Loading");
     auto it = texture_path_to_index_.find(filepath);
     if (it != texture_path_to_index_.end()) {
         return it->second;
@@ -206,10 +214,10 @@ int Scene::LoadTexture(const std::string& filepath) {
     unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &channels, 4);  // Force RGBA
     
     if (!data) {
-        grassland::LogError("Failed to load texture: {} - {}", filepath, stbi_failure_reason());
+        grassland::LogInfo("Failed to load texture: {} - {}", filepath, stbi_failure_reason());
         return -1;
     }
-
+    grassland::LogInfo("Successfully Loaded Texture");
     // Create GPU image
     std::unique_ptr<grassland::graphics::Image> texture;
     core_->CreateImage(

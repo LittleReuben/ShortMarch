@@ -70,6 +70,13 @@ bool Entity::LoadMesh(const std::string& obj_file_path) {
             // Use specular intensity to estimate metallic
             float spec_avg = (mat_data.specular[0] + mat_data.specular[1] + mat_data.specular[2]) / 3.0f;
             mat.metallic = glm::clamp(spec_avg, 0.0f, 1.0f);
+
+            // Load emission (Ke) if provided by MTL/tinyobjloader
+            mat.emission = glm::vec3(0.0f);
+            // math_mesh.MaterialData now includes emission; copy it
+            mat.emission = glm::vec3(mat_data.emission[0], mat_data.emission[1], mat_data.emission[2]);
+
+            
             
             // Set texture path (absolute path)
             if (!mat_data.diffuse_texture.empty()) {

@@ -275,20 +275,38 @@ void Application::OnInit() {
         auto white_cube = std::make_shared<Entity>(
             "meshes/cube.obj",
             Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 2.0f, 0.0f)), 
-                      glm::vec3(10.0f, 0.1f, 10.0f))
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 5.0f, 0.0f)), 
+                      glm::vec3(20.0f, 0.1f, 20.0f))
         );
         scene_->AddEntity(white_cube);
     }
 
+    // {
+    //     auto Qilin = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Qilin/qilin.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
+    //     );
+    //     scene_->AddEntity(Qilin);
+    // }
+
     {
-        auto yellow_cube = std::make_shared<Entity>(
-            "meshes/MeshResources/Qilin/qilin.obj",
-            Material(glm::vec3(1.0f, 0.9f, 0.2f), 0.2f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
+        auto RockSet = std::make_shared<Entity>(
+            "meshes/MeshResources/RockSet/RockSet.obj",
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(1.0f, 1.0f, 1.0f)) // adjust offset as needed
         );
-        scene_->AddEntity(yellow_cube);
+        scene_->AddEntity(RockSet);
     }
+    
+    // {
+    //     auto Eyeball = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Eyeball/eyeball.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 2.0f)), glm::vec3(1.0f, 1.0f, 1.0f))
+    //     );
+
+    // }
 
     // Build acceleration structures
     scene_->BuildAccelerationStructures();

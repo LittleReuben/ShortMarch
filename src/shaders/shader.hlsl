@@ -147,6 +147,41 @@ float3 BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n) {
   return fs + F * D * G / (4 * n_oi * n_oo + 1e-7);
 }
 
+Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr) {
+  // Load instance metadata
+  InstanceMetadata metadata = instance_metadata[instance_id];
+  
+  // Get material ID based on whether this instance has material IDs
+  int material_id;
+  if (metadata.has_material_ids == 1) {
+    // Instance has per-triangle material IDs - look up in global buffer
+    int mat_offset = metadata.material_id_offset;
+    material_id = global_material_ids[mat_offset + primitive_id];
+  } else {
+    // Instance uses single material - material_id_offset IS the material index
+    material_id = metadata.material_id_offset;
+  }
+  
+  // Load material
+  Material mat = materials[material_id];
+  if(mat.texture_index != -1) {
+    float2 bc = attr.barycentrics;
+    int uv_offset = instance_metadata[instance_id].uv_offset;
+    int index_offset = instance_metadata[instance_id].index_offset;
+    int idx0 = global_indices[index_offset + primitive_id * 3 + 0];
+    int idx1 = global_indices[index_offset + primitive_id * 3 + 1];
+    int idx2 = global_indices[index_offset + primitive_id * 3 + 2];
+    float2 uvx0 = global_uvs[uv_offset + idx0];
+    float2 uvx1 = global_uvs[uv_offset + idx1];
+    float2 uvx2 = global_uvs[uv_offset + idx2];
+    float2 uv = (1.0 - bc.x - bc.y) * uvx0 + bc.x * uvx1 + bc.y * uvx2; 
+    uv.y = 1 - uv.y;
+    float4 texture_color = textures[mat.texture_index].SampleLevel(g_Sampler, uv, 0);
+    mat.base_color = texture_color.rgb; 
+  }
+  return mat;
+}
+
 [shader("closesthit")] void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr) {
   uint material_idx = InstanceID();
   if (Rand(payload. seed) < p) {
@@ -160,7 +195,8 @@ float3 BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n) {
     return ;
   }
   // Calculate normal
-  uint id = offset[material_idx] + PrimitiveIndex();
+  uint primitive_id = PrimitiveIndex();
+  uint id = offset[material_idx] + primitive_id;
   uint3 vid = triangles[id];
   float3 p0 = vertices[vid.x];
   float3 p1 = vertices[vid.y];
@@ -185,45 +221,8 @@ float3 BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n) {
   ray. TMax = 1e4;
   payload. depth ++;
   TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
-  //Load Material
-  uint instance_id = material_idx;
-  uint primitive_id = PrimitiveIndex();
-  payload.instance_id = instance_id;
-  
-  // Load instance metadata
-  InstanceMetadata metadata = instance_metadata[instance_id];
-  
-  // Get material ID based on whether this instance has material IDs
-  int material_id;
-  if (metadata.has_material_ids == 1) {
-    // Instance has per-triangle material IDs - look up in global buffer
-    int mat_offset = metadata.material_id_offset;
-    material_id = global_material_ids[mat_offset + primitive_id];
-  } else {
-    // Instance uses single material - material_id_offset IS the material index
-    material_id = metadata.material_id_offset;
-  }
-  
-  // Load material
-  Material mat = materials[material_id];
-  
-  if(mat.texture_index != -1) {
-    while(mat.texture_index != 0);
-    float2 bc = attr.barycentrics;
-    int uv_offset = instance_metadata[instance_id].uv_offset;
-    int index_offset = instance_metadata[instance_id].index_offset;
-    int idx0 = global_indices[index_offset + primitive_id * 3 + 0];
-    int idx1 = global_indices[index_offset + primitive_id * 3 + 1];
-    int idx2 = global_indices[index_offset + primitive_id * 3 + 2];
-    float2 uvx0 = global_uvs[uv_offset + idx0];
-    float2 uvx1 = global_uvs[uv_offset + idx1];
-    float2 uvx2 = global_uvs[uv_offset + idx2];
-    float2 uv = (1.0-bc.x-bc.y) * uvx0 + bc.x * uvx1 + bc.y * uvx2; 
-    
-    float4 texture_color = textures[mat.texture_index].SampleLevel(g_Sampler, uv, 0);
-
-    mat.base_color = texture_color.rgb; 
-  }
+  // Load Material
+  Material mat = getMaterial(material_idx, primitive_id, attr);
   payload. color = (payload. color * BRDF(mat, inDir, - outDir, N) * cosTheta * 2 * PI) / (1 - p) + materials[material_idx]. emission;
   payload. hit = true;
   payload. instance_id = InstanceID();
