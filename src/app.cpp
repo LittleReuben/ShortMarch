@@ -270,14 +270,14 @@ void Application::OnInit() {
     //     );
     //     scene_->AddEntity(small_cube);
     // }
-    // for (int i=-2; i<=+2; i++)
-    //     for (int j=-2; j<=+2; j++) {
-    //         auto cube = std::make_shared<Entity>("meshes/cube.obj", 
-    //             Material(glm::vec3((4 + i) / 7.0f, (4 + j) / 7.0f, (8 + i + j) / 14.0f), (i + 2) / 4.0f, (j + 2) / 4.0f), 
-    //             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(i * 2, 0.1f, j * 2)), 
-    //             glm::vec3(0.5f, 0.5f, 0.5f)));
-    //         scene_->AddEntity(cube);
-    //     }
+    for (int i=-2; i<=+2; i++)
+        for (int j=-2; j<=+2; j++) {
+            auto cube = std::make_shared<Entity>("meshes/cube.obj", 
+                Material(glm::vec3((4 + i) / 7.0f, (4 + j) / 7.0f, (8 + i + j) / 14.0f), (i + 2) / 4.0f, (j + 2) / 4.0f), 
+                glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(i * 2, 0.1f, j * 2)), 
+                glm::vec3(0.5f, 0.5f, 0.5f)));
+            scene_->AddEntity(cube);
+        }
 
     {
         auto white_cube = std::make_shared<Entity>(
@@ -289,14 +289,14 @@ void Application::OnInit() {
         scene_->AddEntity(white_cube);
     }
 
-    {
-        auto Qilin = std::make_shared<Entity>(
-            "meshes/MeshResources/Qilin/qilin.obj",
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
-        );
-        scene_->AddEntity(Qilin);
-    }
+    // {
+    //     auto Qilin = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Qilin/qilin.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
+    //     );
+    //     scene_->AddEntity(Qilin);
+    // }
 
     // {
     //     auto RockSet = std::make_shared<Entity>(
@@ -525,6 +525,7 @@ void Application::UpdateHoveredEntity() {
         hovered_pixel_color_ = glm::vec4(0.0f);
         return;
     }
+    // y = height - 1 - y;
 
     grassland::graphics::Offset2D offset{ x, y };
     grassland::graphics::Extent2D extent{ 1, 1 };
@@ -534,6 +535,7 @@ void Application::UpdateHoveredEntity() {
     int32_t entity_id = -1;
     entity_id_image_->DownloadData(&entity_id, offset, extent);
     hovered_entity_id_ = entity_id;
+    // hovered_entity_id_ = 1;
     
     // Read pixel color from accumulated buffer (before highlighting is applied)
     // Note: This is a synchronous read which may cause a GPU stall
