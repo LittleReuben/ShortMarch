@@ -19,6 +19,13 @@ struct InstanceMetadata {
     int padding[1];             // Align to 32 bytes for GPU (reduced from 2 to 1)
 };
 
+struct PointLight {
+    glm :: vec3 position;
+    glm :: vec3 color;
+    PointLight () : position (0.0f, 0.0f, 0.0f), color (0.0f, 0.0f, 0.0f) {}
+    PointLight (const glm :: vec3 & pos, const glm :: vec3 & col) : position (pos), color (col) {}
+} ;
+
 // Scene manages a collection of entities and builds the TLAS
 class Scene {
 public:
@@ -27,6 +34,9 @@ public:
 
     // Add an entity to the scene
     void AddEntity(std::shared_ptr<Entity> entity);
+
+    // Add a point light
+    void AddPointLight(const PointLight &);
 
     // Remove all entities
     void Clear();
@@ -66,6 +76,10 @@ public:
     grassland::graphics::Image* GetTexture(int index) const;
     size_t GetTextureCount() const { return textures_.size(); }
 
+    // Get all point lights
+    const std :: vector<PointLight> & GetPointLights() const { return point_lights_; }
+
+
 private:
     void UpdateMaterialsBuffer();
     void AssignTextureIndices();  // Assign texture indices to materials
@@ -79,6 +93,7 @@ private:
     std::vector<std::shared_ptr<Entity>> entities_;
     std::unique_ptr<grassland::graphics::AccelerationStructure> tlas_;
     std::unique_ptr<grassland::graphics::Buffer> materials_buffer_;
+    std::vector <PointLight> point_lights_;
     
     // Global buffers for all entities combined (only actual data, no padding)
     std::unique_ptr<grassland::graphics::Buffer> global_uv_buffer_;

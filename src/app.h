@@ -64,6 +64,7 @@ private:
     std::unique_ptr<grassland::graphics::Buffer> offsets_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> vertices_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> triangles_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> point_lights_buffer_;
     bool alive_{ false };
 
     void ProcessInput(); // Helper function for keyboard input

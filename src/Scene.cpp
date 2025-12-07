@@ -25,6 +25,10 @@ void Scene::AddEntity(std::shared_ptr<Entity> entity) {
     grassland::LogInfo("Added entity to scene (total: {})", entities_.size());
 }
 
+void Scene::AddPointLight(const PointLight & light) {
+    point_lights_. push_back(light);
+}
+
 void Scene::Clear() {
     entities_.clear();
     tlas_.reset();

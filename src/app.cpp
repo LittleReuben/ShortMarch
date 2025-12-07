@@ -1,6 +1,7 @@
 #include "app.h"
 #include "Material.h"
 #include "Entity.h"
+#include "Scene.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "imgui.h"
@@ -17,6 +18,7 @@ namespace {
 #include "built_in_shaders.inl"
 }
 const int MAX_TEXTURE_COUNT = 64;
+const float fov = 90.0f;
 Application::Application(grassland::graphics::BackendAPI api) {
     grassland::graphics::CreateCore(api, grassland::graphics::Core::Settings{}, &core_);
     core_->InitializeLogicalDeviceAutoSelect(true);
@@ -283,8 +285,8 @@ void Application::OnInit() {
         auto white_cube = std::make_shared<Entity>(
             "meshes/cube.obj",
             Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(0.8f, 0.8f, 0.8f)),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 5.0f, 0.0f)), 
-                      glm::vec3(20.0f, 0.1f, 20.0f))
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)), 
+                      glm::vec3(10.0f, 0.1f, 10.0f))
         );
         scene_->AddEntity(white_cube);
     }
@@ -300,20 +302,20 @@ void Application::OnInit() {
 
     // {
     //     auto RockSet = std::make_shared<Entity>(
-    //         "meshes/MeshResources/RockSet/RockSet.obj",
+    //         "meshes/MeshResources/TinyLivingPack_mesh/Sims4_TinyLivingPack_1_0.obj",
     //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 0.0f)), glm::vec3(1.0f, 1.0f, 1.0f)) // adjust offset as needed
+    //         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)) // adjust offset as needed
     //     );
     //     scene_->AddEntity(RockSet);
     // }
     
     // {
-    //     auto Eyeball = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Eyeball/eyeball.obj",
+    //     auto MC = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
     //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.5f, 2.0f)), glm::vec3(1.0f, 1.0f, 1.0f))
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
     //     );
-
+    //     scene_ -> AddEntity(MC);
     // }
 
     // Build acceleration structures
@@ -353,7 +355,7 @@ void Application::OnInit() {
     // Set initial camera buffer data
     CameraObject camera_object{};
     camera_object.screen_to_camera = glm::inverse(
-        glm::perspective(glm::radians(60.0f), (float)window_->GetWidth() / (float)window_->GetHeight(), 0.1f, 10.0f));
+        glm::perspective(glm::radians(fov), (float)window_->GetWidth() / (float)window_->GetHeight(), 0.1f, 10.0f));
     camera_object.camera_to_world =
         glm::inverse(glm::lookAt(camera_pos_, camera_pos_ + camera_front_, camera_up_));
     camera_object_buffer_->UploadData(&camera_object, sizeof(CameraObject));
@@ -385,8 +387,10 @@ void Application::OnInit() {
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space11 - Instance Metadata Buffer
     
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_IMAGE, MAX_TEXTURE_COUNT);   // space12 - Texture Buffer
-    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);               // space13 - Sampler for textures
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);                 // space13 - Sampler for textures
     
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space14 - point lights
+
     program_->Finalize();
 
     // Create a small buffer to hold the sample count (space8 expects a uniform buffer)
@@ -481,6 +485,14 @@ void Application::OnInit() {
         core_->CreateBuffer(aggregated_triangles.size() * sizeof(uint32_t),
                             grassland::graphics::BUFFER_TYPE_STATIC, &triangles_buffer_);
         triangles_buffer_->UploadData(aggregated_triangles.data(), aggregated_triangles.size() * sizeof(uint32_t));
+    }
+
+    {
+        std :: vector <PointLight> point_lights = scene_ -> GetPointLights();
+        if (point_lights. empty()) point_lights. push_back(PointLight ());
+        core_->CreateBuffer(point_lights.size() * sizeof(glm::vec3),
+                            grassland::graphics::BUFFER_TYPE_STATIC, &point_lights_buffer_);
+        point_lights_buffer_->UploadData(point_lights.data(), point_lights.size() * sizeof(glm::vec3));
     }
 
 }
@@ -593,7 +605,7 @@ void Application::OnUpdate() {
         // Update the camera buffer with new position/orientation
         CameraObject camera_object{};
         camera_object.screen_to_camera = glm::inverse(
-            glm::perspective(glm::radians(60.0f), (float)window_->GetWidth() / (float)window_->GetHeight(), 0.1f, 10.0f));
+            glm::perspective(glm::radians(fov), (float)window_->GetWidth() / (float)window_->GetHeight(), 0.1f, 10.0f));
         camera_object.camera_to_world =
             glm::inverse(glm::lookAt(camera_pos_, camera_pos_ + camera_front_, camera_up_));
         camera_object_buffer_->UploadData(&camera_object, sizeof(CameraObject));
@@ -659,7 +671,7 @@ void Application::SaveAccumulatedOutput(const std::string& filename) {
         float r = accumulated_colors[i * 4 + 0] / static_cast<float>(sample_count);
         float g = accumulated_colors[i * 4 + 1] / static_cast<float>(sample_count);
         float b = accumulated_colors[i * 4 + 2] / static_cast<float>(sample_count);
-        float a = accumulated_colors[i * 4 + 3] / static_cast<float>(sample_count);
+        float a = 1; // accumulated_colors[i * 4 + 3] / static_cast<float>(sample_count);
         
         // Clamp to [0, 1] and convert to 8-bit
         byte_data[i * 4 + 0] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, r)) * 255.0f);
@@ -1021,6 +1033,7 @@ void Application::OnRender() {
     command_context->CmdBindResources(12, tex_list, grassland::graphics::BIND_POINT_RAYTRACING);
     // Bind sampler (space13)
     command_context->CmdBindResources(13, { dummy_sampler_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context -> CmdBindResources(14, {point_lights_buffer_. get()}, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdDispatchRays(window_->GetWidth(), window_->GetHeight(), 1);
     
     // When camera is disabled, increment sample count and use accumulated image

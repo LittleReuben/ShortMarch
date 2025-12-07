@@ -27,6 +27,11 @@ struct HoverInfo {
   int hovered_entity_id;
 };
 
+struct PointLight {
+  float3 position;
+  float3 color;
+};
+
 RaytracingAccelerationStructure as : register(t0, space0);
 RWTexture2D<float4> output : register(u0, space1);
 ConstantBuffer<CameraInfo> camera_info : register(b0, space2);
@@ -49,6 +54,7 @@ StructuredBuffer<InstanceMetadata> instance_metadata : register(t0, space11);  /
 StructuredBuffer<uint> global_indices : register(t2, space10);         // Global index buffer
 Texture2D<float4> textures[64] : register(t0, space12);                          // Texture array (bindless)
 SamplerState g_Sampler : register(s0, space13);
+StructuredBuffer <PointLight> point_lights : register (t0, space14);
 
 struct RayPayload {
   float3 color;
@@ -123,7 +129,7 @@ uint tea(uint val0, uint val1) {
 [shader("miss")] void MissMain(inout RayPayload payload) {
   // Sky gradient
   float t = 0.5 * (normalize(WorldRayDirection()).y + 1.0);
-  payload.color = lerp(float3(0.0, 0.0, 0.0), float3(0.1, 0.15, 0.2), t);
+  payload.color = lerp(float3(1.0, 1.0, 1.0), float3(0.5, 0.7, 1.0), t);
   payload.hit = false;
   payload.instance_id = 0xFFFFFFFF; // Invalid ID for miss
 }
@@ -143,7 +149,7 @@ float3 BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n) {
   float n_oi = dot(n, oi), n_oo = dot(n, oo), n_h = dot(n, h);
   if (n_oi <= 0.0f || n_oo <= 0.0f) return float3 (0.0, 0.0, 0.0);
   float3 F0 = calcF0(mat);
-  float3 F = F0 + (float3 (1.0, 1.0, 1.0) - F0) * pow(1 - dot(oo, h), 5);
+  float3 F = F0 + (float3 (1.0, 1.0, 1.0) - F0) * pow(clamp(1 - dot(oo, h), 0.0, 1.0), 5);
   float alpha = sqr(mat. roughness);
   float D = calcD(alpha, n_h);
   float k = sqr(alpha + 1) / 8;
@@ -194,19 +200,19 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
 
 [shader("closesthit")] void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr) {
   uint material_id = InstanceID(), primitive_id = PrimitiveIndex();
+  // Load material
+  Material mat = getMaterial(material_id, primitive_id, attr);
+  mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   if (Rand(payload. seed) < p) {
     payload. hit = true;
     payload. instance_id = material_id;
-    payload. color = materials[material_id]. emission;
+    payload. color = mat. emission;
     return ;
   }
   if (payload. depth > 20) {
     payload. color = float3 (0.0, 0.0, 0.0);
     return ;
   }
-  // Load material
-  Material mat = getMaterial(material_id, primitive_id, attr);
-  mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   // Calculate normal
   uint id = offset[material_id] + primitive_id;
   uint3 vid = triangles[id];
@@ -255,7 +261,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   payload. depth ++;
   TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
   // Calculate color
-  payload. color = payload. color * BRDF(mat, inDir, outDir, N) * dot(N, inDir) / P / (1 - p) + materials[material_id]. emission;
+  payload. color = payload. color * BRDF(mat, inDir, outDir, N) * dot(N, inDir) / P / (1 - p) + mat. emission;
   payload. hit = true;
   payload. instance_id = InstanceID();
 }
