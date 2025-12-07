@@ -7,6 +7,8 @@
 struct CameraObject {
     glm::mat4 screen_to_camera;
     glm::mat4 camera_to_world;
+    float aperture_size;
+    float focal_distance;
 };
 
 class Application {
@@ -49,6 +51,7 @@ private:
     // Shaders
     std::unique_ptr<grassland::graphics::Shader> raygen_shader_;
     std::unique_ptr<grassland::graphics::Shader> miss_shader_;
+    std::unique_ptr<grassland::graphics::Shader> shadow_miss_shader_;
     std::unique_ptr<grassland::graphics::Shader> closest_hit_shader_;
 
     // Rendering
@@ -60,7 +63,7 @@ private:
     std::unique_ptr<grassland::graphics::Buffer> dummy_buffer_;
     std::unique_ptr<grassland::graphics::Sampler> dummy_sampler_;
     
-    std::unique_ptr<grassland::graphics::Buffer> sample_count_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> misc_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> offsets_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> vertices_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> triangles_buffer_;
@@ -86,6 +89,8 @@ private:
     float pitch_;
     float last_x_;
     float last_y_;
+    float aperture_size_ = 0.03;
+    float focal_distance_ = 3;
     float mouse_sensitivity_;
     bool first_mouse_; // Prevents camera jump on first mouse input
     bool camera_enabled_; // Whether camera movement is enabled

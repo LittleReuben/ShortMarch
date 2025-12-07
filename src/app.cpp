@@ -227,11 +227,13 @@ void Application::OnInit() {
         auto ground = std::make_shared<Entity>(
             "meshes/cube.obj",
             Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), 
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)), 
                       glm::vec3(10.0f, 0.1f, 10.0f))
         );
         scene_->AddEntity(ground);
     }
+
+    scene_ -> AddPointLight(PointLight (glm :: vec3 (0.0f, 0.7f, 0.0f), glm :: vec3 (3.0f, 2.0f, 1.0f)));
 
     // Red sphere (using octahedron as sphere substitute)
     // {
@@ -284,7 +286,7 @@ void Application::OnInit() {
     {
         auto white_cube = std::make_shared<Entity>(
             "meshes/cube.obj",
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(0.8f, 0.8f, 0.8f)),
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f)),
             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)), 
                       glm::vec3(10.0f, 0.1f, 10.0f))
         );
@@ -358,6 +360,9 @@ void Application::OnInit() {
         glm::perspective(glm::radians(fov), (float)window_->GetWidth() / (float)window_->GetHeight(), 0.1f, 10.0f));
     camera_object.camera_to_world =
         glm::inverse(glm::lookAt(camera_pos_, camera_pos_ + camera_front_, camera_up_));
+    camera_object.aperture_size = aperture_size_;
+    std::cerr<<aperture_size_<<std::endl;
+    camera_object.focal_distance = focal_distance_;
     camera_object_buffer_->UploadData(&camera_object, sizeof(CameraObject));
 
     core_->CreateImage(window_->GetWidth(), window_->GetHeight(), grassland::graphics::IMAGE_FORMAT_R32G32B32A32_SFLOAT,
@@ -369,10 +374,12 @@ void Application::OnInit() {
 
     core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "RayGenMain", "lib_6_3", &raygen_shader_);
     core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "MissMain", "lib_6_3", &miss_shader_);
+    core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ShadowMiss", "lib_6_3", &shadow_miss_shader_);
     core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ClosestHitMain", "lib_6_3", &closest_hit_shader_);
     grassland::LogInfo("Shader compiled successfully");
 
     core_->CreateRayTracingProgram(raygen_shader_.get(), miss_shader_.get(), closest_hit_shader_.get(), &program_);
+    program_ -> AddMissShader(shadow_miss_shader_. get());
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_ACCELERATION_STRUCTURE, 1);  // space0
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space1 - color output
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_UNIFORM_BUFFER, 1);          // space2
@@ -394,9 +401,11 @@ void Application::OnInit() {
     program_->Finalize();
 
     // Create a small buffer to hold the sample count (space8 expects a uniform buffer)
+    core_->CreateBuffer(16, grassland::graphics::BUFFER_TYPE_DYNAMIC, &misc_buffer_);
     uint32_t initial_sample_count = static_cast<uint32_t>(film_->GetSampleCount());
-    core_->CreateBuffer(16, grassland::graphics::BUFFER_TYPE_DYNAMIC, &sample_count_buffer_);
-    sample_count_buffer_->UploadData(&initial_sample_count, sizeof(uint32_t), 0);
+    misc_buffer_->UploadData(&initial_sample_count, sizeof(uint32_t), 0);
+    uint32_t plcnt = static_cast <uint32_t> ((scene_ -> GetPointLights()). size());
+    misc_buffer_->UploadData(&plcnt, sizeof(uint32_t), sizeof(uint32_t));
 
     // Create persistent dummy resources (do once, reuse each frame)
     // Dummy buffer (used as fallback for missing storage buffers)
@@ -490,9 +499,9 @@ void Application::OnInit() {
     {
         std :: vector <PointLight> point_lights = scene_ -> GetPointLights();
         if (point_lights. empty()) point_lights. push_back(PointLight ());
-        core_->CreateBuffer(point_lights.size() * sizeof(glm::vec3),
+        core_->CreateBuffer(point_lights.size() * sizeof(PointLight),
                             grassland::graphics::BUFFER_TYPE_STATIC, &point_lights_buffer_);
-        point_lights_buffer_->UploadData(point_lights.data(), point_lights.size() * sizeof(glm::vec3));
+        point_lights_buffer_->UploadData(point_lights.data(), point_lights.size() * sizeof(PointLight));
     }
 
 }
@@ -608,6 +617,8 @@ void Application::OnUpdate() {
             glm::perspective(glm::radians(fov), (float)window_->GetWidth() / (float)window_->GetHeight(), 0.1f, 10.0f));
         camera_object.camera_to_world =
             glm::inverse(glm::lookAt(camera_pos_, camera_pos_ + camera_front_, camera_up_));
+        camera_object.focal_distance = focal_distance_;
+        camera_object.aperture_size = aperture_size_;
         camera_object_buffer_->UploadData(&camera_object, sizeof(CameraObject));
 
 
@@ -1004,8 +1015,8 @@ void Application::OnRender() {
     command_context->CmdBindResources(6, { film_->GetAccumulatedColorImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(7, { film_->GetAccumulatedSamplesImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
     uint32_t sc = static_cast<uint32_t>(film_->GetSampleCount());
-    sample_count_buffer_->UploadData(&sc, sizeof(uint32_t), 0);
-    command_context->CmdBindResources(8, { sample_count_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    misc_buffer_->UploadData(&sc, sizeof(uint32_t), 0);
+    command_context->CmdBindResources(8, { misc_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     std::vector<grassland::graphics::Buffer*> buffers = {
         offsets_buffer_.get(),
         vertices_buffer_.get(), 
