@@ -91,7 +91,7 @@ private:
     float pitch_;
     float last_x_;
     float last_y_;
-    float aperture_size_ = 0.03;
+    float aperture_size_ = 0.0;
     float focal_distance_ = 3;
     float mouse_sensitivity_;
     bool first_mouse_; // Prevents camera jump on first mouse input

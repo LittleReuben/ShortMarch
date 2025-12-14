@@ -9,6 +9,10 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+// Include stb_image for texture loading
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -227,13 +231,13 @@ void Application::OnInit() {
         auto ground = std::make_shared<Entity>(
             "meshes/cube.obj",
             Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)), 
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f)), 
                       glm::vec3(10.0f, 0.1f, 10.0f))
         );
         scene_->AddEntity(ground);
     }
 
-    scene_ -> AddPointLight(PointLight (glm :: vec3 (0.0f, 0.7f, 0.0f), glm :: vec3 (3.0f, 2.0f, 1.0f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.0f, 0.7f, 0.0f), glm :: vec3 (3.0f, 2.0f, 1.0f)));
 
     // Red sphere (using octahedron as sphere substitute)
     // {
@@ -259,7 +263,7 @@ void Application::OnInit() {
     // {
     //     auto blue_cube = std::make_shared<Entity>(
     //         "meshes/cube.obj",
-    //         Material(glm::vec3(0.2f, 0.2f, 1.0f), 0.0f, 1.0f),
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f),
     //         glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.5f, 0.0f))
     //     );
     //     scene_->AddEntity(blue_cube);
@@ -274,23 +278,23 @@ void Application::OnInit() {
     //     );
     //     scene_->AddEntity(small_cube);
     // }
-    for (int i=-2; i<=+2; i++)
-        for (int j=-2; j<=+2; j++) {
-            auto cube = std::make_shared<Entity>("meshes/cube.obj", 
-                Material(glm::vec3((4 + i) / 7.0f, (4 + j) / 7.0f, (8 + i + j) / 14.0f), (i + 2) / 4.0f, (j + 2) / 4.0f), 
-                glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(i * 2, 0.1f, j * 2)), 
-                glm::vec3(0.5f, 0.5f, 0.5f)));
-            scene_->AddEntity(cube);
-        }
+    // for (int i=-2; i<=+2; i++)
+    //     for (int j=-2; j<=+2; j++) {
+    //         auto cube = std::make_shared<Entity>("meshes/cube.obj", 
+    //             Material(glm::vec3((4 + i) / 7.0f, (4 + j) / 7.0f, (8 + i + j) / 14.0f), (i + 2) / 4.0f, (j + 2) / 4.0f), 
+    //             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(i * 2, 0.1f, j * 2)), 
+    //             glm::vec3(0.5f, 0.5f, 0.5f)));
+    //         scene_->AddEntity(cube);
+    //     }
 
     {
-        auto white_cube = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f)),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)), 
-                      glm::vec3(10.0f, 0.1f, 10.0f))
-        );
-        scene_->AddEntity(white_cube);
+        // auto white_cube = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)), 
+        //               glm::vec3(10.0f, 0.1f, 10.0f))
+        // );
+        // scene_->AddEntity(white_cube);
     }
 
     // {
@@ -319,6 +323,15 @@ void Application::OnInit() {
     //     );
     //     scene_ -> AddEntity(MC);
     // }
+
+    {
+        auto Eyeball = std::make_shared<Entity>(
+            "meshes/MeshResources/Eyeball/eyeball.obj", 
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
+        );
+        scene_->AddEntity(Eyeball);
+    }
 
     // Build acceleration structures
     scene_->BuildAccelerationStructures();
@@ -423,7 +436,7 @@ void Application::OnInit() {
     dummy_image_->UploadData(clear_pixel_u8);
 
     int width, height, channels;
-    float* hdr_data = stbi_loadf("textures/skybox.hdr", &width, &height, &channels, 4);
+    float* hdr_data = stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/background1.hdr", &width, &height, &channels, 4);
     
     if (hdr_data) {
         core_->CreateImage(width, height, 

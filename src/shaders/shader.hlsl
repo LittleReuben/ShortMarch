@@ -232,7 +232,7 @@ float luminance(float3 c) {
   return 0.2126 * c. r + 0.7152 * c. g + 0.0722 * c. b;
 }
 
-Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr, inout float3 N, in float3 T, in float3 B) {
+Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr, inout float3 N, in float3 p0, in float3 p1, in float3 p2) {
   // Load instance metadata
   InstanceMetadata metadata = instance_metadata[instance_id];
   
@@ -267,24 +267,31 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     mat.base_color = texture_color.rgb;
     
     // Sample normal map
-  }
-  if(mat.normal_index != -1) {
-      float3 normalMapSample = normalmaps[mat.texture_index].SampleLevel(normalmap_sampler, uv, 0).xyz;
-      
-      // Convert from [0,1] to [-1,1] range
-      float3 tangentNormal = normalMapSample * 2.0 - 1.0;
-      
-      // Build TBN matrix (tangent space to world space)
-      float3x3 TBN = float3x3(T, B, N);
-      
-      // Transform normal from tangent space to world space
-      N = normalize(mul(tangentNormal, TBN));
-      
-      // Ensure normal faces the correct direction
-      if (dot(N, -WorldRayDirection()) < 0.0)
-        N = -N;
+    if(mat.normal_index != -1) {
+        float3 normalMapSample = normalmaps[mat.normal_index].SampleLevel(normalmap_sampler, uv, 0).xyz;
+        
+        // Convert from [0,1] to [-1,1] range
+        float3 tangentNormal = normalMapSample * 2.0 - 1.0;
 
+        float2 duv1 = uvx1 - uvx0, duv2 = uvx2 - uvx0;
+        float3 dp1  = p1 - p0,    dp2  = p2 - p0;
+        float r = 1.0 / (duv1.x * duv2.y - duv1.y * duv2.x + 1e-8);
+        float3 T = normalize((dp1 * duv2.y - dp2 * duv1.y) * r);
+        float3 B = normalize((dp2 * duv1.x - dp1 * duv2.x) * r);
+        
+        // Build TBN matrix (tangent space to world space)
+        float3x3 TBN = float3x3(T, B, N);
+        
+        // Transform normal from tangent space to world space
+        N = normalize(mul(tangentNormal, TBN));
+        
+        // Ensure normal faces the correct direction
+        if (dot(N, -WorldRayDirection()) < 0.0)
+          N = -N;
+
+    }
   }
+  
   return mat;
 }
 
@@ -309,7 +316,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   float3 T = cross(N, B);
   
   // Load material (this will also update N with normal map if available)
-  Material mat = getMaterial(material_id, primitive_id, attr, N, T, B);
+  Material mat = getMaterial(material_id, primitive_id, attr, N, p0, p1, p2);
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   if (Rand(payload. seed) < p) {
     payload. hit = true;
