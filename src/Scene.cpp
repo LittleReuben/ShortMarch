@@ -208,7 +208,7 @@ void Scene::AssignTextureIndices() {
                 int norm_index = LoadNormal(mat.GetNormalPath());
                 mat.normal_index = norm_index; 
                 grassland::LogInfo("Assigned texture index {} to material {} with texture: {}", 
-                                    norm_index, i, mat.GetNormalPath());
+                                    norm_index, mat.GetNormalPath());
             }
             grassland::LogInfo("Entity {} has texture index {}", cnt, mat.texture_index);
         }

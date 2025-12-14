@@ -73,6 +73,7 @@ public:
 
     // Texture management
     int LoadTexture(const std::string& filepath);  // Returns texture index
+    int LoadNormal(const std::string& filepath);
     grassland::graphics::Image* GetTexture(int index) const;
     grassland::graphics::Image* GetNormal(int index) const;
     size_t GetTextureCount() const { return textures_.size(); }

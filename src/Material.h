@@ -45,7 +45,7 @@ struct Material {
         , texture_index(-1)
         , normal_index(-1)
         , emission(0.0f, 0.0f, 0.0f) 
-        , texture_path("") {}
+        , texture_path("") 
         , normal_path("") {}
 
     // Constructor with color (for manual material specification)
@@ -56,7 +56,7 @@ struct Material {
         , texture_index(-1)
         , normal_index(-1)
         , emission(glow)
-        , texture_path("") {}
+        , texture_path("") 
         , normal_path("") {}
     
     // Helper methods
