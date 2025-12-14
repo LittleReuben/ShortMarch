@@ -171,7 +171,7 @@ void Scene::UpdateMaterialsBuffer() {
 }
 
 void Scene::AssignTextureIndices() {
-    // Load all unique textures and assign indices to materials
+    // Load all unique textures and assign indices to materials (assign texture and normal maps together)
     int cnt = 0;
     grassland::LogInfo("AAAAA Assigning Texture index to entity {}", cnt);
     for (auto& entity : entities_) {
@@ -186,6 +186,12 @@ void Scene::AssignTextureIndices() {
                     grassland::LogInfo("Assigned texture index {} to material {} with texture: {}", 
                                      tex_index, i, mat.GetTexturePath());
                 }
+                if(mat.HasNormal()) {
+                    int norm_index = LoadNormal(mat.GetNormalPath());
+                    mat.normal_index = norm_index; 
+                    grassland::LogInfo("Assigned texture index {} to material {} with texture: {}", 
+                                     norm_index, i, mat.GetNormalPath());
+                }
             }
             grassland::LogInfo("Entity {} has texture index {}", cnt, mtl_materials[0].texture_index);
 
@@ -197,6 +203,12 @@ void Scene::AssignTextureIndices() {
                 mat.texture_index = tex_index;
                 grassland::LogInfo("Assigned texture index {} to default material with texture: {}", 
                                  tex_index, mat.GetTexturePath());
+            }
+            if(mat.HasNormal()) {
+                int norm_index = LoadNormal(mat.GetNormalPath());
+                mat.normal_index = norm_index; 
+                grassland::LogInfo("Assigned texture index {} to material {} with texture: {}", 
+                                    norm_index, i, mat.GetNormalPath());
             }
             grassland::LogInfo("Entity {} has texture index {}", cnt, mat.texture_index);
         }
@@ -247,6 +259,42 @@ int Scene::LoadTexture(const std::string& filepath) {
 
     return index;
 }
+
+int Scene::LoadNormal(const std::string& filepath){
+    grassland::LogInfo("Enter Normal Loading");
+    int width, height, channels;
+    unsigned char* data = stbi_load(filepath.c_str(), &width, &height, &channels, 4);  // Force RGBA
+    
+    if (!data) {
+        grassland::LogInfo("Failed to load normal: {} - {}", filepath, stbi_failure_reason());
+        return -1;
+    }
+    grassland::LogInfo("Successfully Loaded normal");
+    // Create GPU image
+    std::unique_ptr<grassland::graphics::Image> normal;
+    core_->CreateImage(
+        width,
+        height,
+        grassland::graphics::IMAGE_FORMAT_R8G8B8A8_UNORM,
+        &normal
+    );
+
+    // Upload data
+    normal->UploadData(data);
+    
+    // Free image data
+    stbi_image_free(data);
+
+    // Store texture
+    int index = static_cast<int>(normals_.size());
+    normals_.push_back(std::move(normal));
+
+    grassland::LogInfo("Loaded normal: {} ({}x{}, {} channels) -> index {}", 
+                      filepath, width, height, channels, index);
+
+    return index;
+}
+
 
 void Scene::ConstructUVBuffer(){
     if(entities_.empty()){
@@ -444,4 +492,11 @@ grassland::graphics::Image* Scene::GetTexture(int index) const {
         return nullptr;
     }
     return textures_[index].get();
+}
+
+grassland::graphics::Image* Scene::GetNormal(int index) const {
+    if(index < 0 || index >= static_cast<int>(normals_.size())) {
+        return nullptr;
+    }
+    return normals_[index].get();
 }

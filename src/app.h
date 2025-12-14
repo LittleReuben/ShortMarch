@@ -62,6 +62,8 @@ private:
     std::unique_ptr<grassland::graphics::Image> dummy_image_;
     std::unique_ptr<grassland::graphics::Buffer> dummy_buffer_;
     std::unique_ptr<grassland::graphics::Sampler> dummy_sampler_;
+    std::unique_ptr<grassland::graphics::Sampler>skybox_sampler_;
+    std::unique_ptr<grassland::graphics::Image> hdr_skybox_;
     
     std::unique_ptr<grassland::graphics::Buffer> misc_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> offsets_buffer_;

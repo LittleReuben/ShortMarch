@@ -82,6 +82,9 @@ bool Entity::LoadMesh(const std::string& obj_file_path) {
             if (!mat_data.diffuse_texture.empty()) {
                 mat.texture_path = base_dir + "/" + mat_data.diffuse_texture;
             }
+            if(!mat_data.normal_texture.empty()) {
+                mat.normal_path = base_dir + "/" + mat_data.normal_texture;
+            }
             
             materials_.push_back(mat);
             material_name_to_index_[mat_data.name] = static_cast<int>(i);

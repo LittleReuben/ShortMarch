@@ -11,6 +11,7 @@ struct MaterialGPUData {
     
     float metallic;             // Metallic factor [0,1]
     int texture_index;
+    int normal_index;
     glm::vec3 emission;           // Padding for GPU alignment (total size = 32 bytes)
 };
 
@@ -28,10 +29,13 @@ struct Material {
     
     float metallic;             // Metallic factor [0,1]
     int texture_index;
+    int normal_index;
     glm::vec3 emission;           
     
     // Texture path (CPU only, not uploaded to GPU)
     std::string texture_path;
+    //Normal path (CPU only)
+    std::string normal_path; 
     
     // Default constructor - pure color material
     Material()
@@ -39,8 +43,10 @@ struct Material {
         , roughness(0.5f)
         , metallic(0.0f)
         , texture_index(-1)
+        , normal_index(-1)
         , emission(0.0f, 0.0f, 0.0f) 
         , texture_path("") {}
+        , normal_path("") {}
 
     // Constructor with color (for manual material specification)
     Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f))
@@ -48,16 +54,23 @@ struct Material {
         , roughness(rough)
         , metallic(metal)
         , texture_index(-1)
+        , normal_index(-1)
         , emission(glow)
         , texture_path("") {}
+        , normal_path("") {}
     
     // Helper methods
     bool HasTexture() const { return !texture_path.empty(); }
+    bool HasNormal() const { return !normal_path.empty(); }
     const std::string& GetTexturePath() const { return texture_path; }
+    const std::string& GetNormalPath() const { return normal_path; }
     void SetTexturePath(const std::string& path) { texture_path = path; }
+    void SetNormalPath(const std::string& path){ normal_path = path;}
     void ClearTexture() { 
         texture_path.clear(); 
         texture_index = -1; 
+        normal_index = -1;
+        normal_path.clear();
     }
     
     // Convert to GPU data (only POD fields, no std::string)
@@ -67,6 +80,7 @@ struct Material {
         gpu_data.roughness = roughness;
         gpu_data.metallic = metallic;
         gpu_data.texture_index = texture_index;
+        gpu_data.normal_index = normal_index;
         gpu_data.emission = emission; 
         return gpu_data;
     }

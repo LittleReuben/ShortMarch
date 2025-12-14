@@ -397,6 +397,10 @@ void Application::OnInit() {
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);                 // space13 - Sampler for textures
     
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space14 - point lights
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_IMAGE, MAX_TEXTURE_COUNT);   // space15 - Normal map Buffer
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);                 // space16 - Normal map sampler
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_IMAGE, 1);      // space17 - HDR skybox
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);    // space18 - skybox sampler
 
     program_->Finalize();
 
@@ -418,6 +422,28 @@ void Application::OnInit() {
     core_->CreateImage(1, 1, grassland::graphics::IMAGE_FORMAT_R8G8B8A8_UNORM, &dummy_image_);
     dummy_image_->UploadData(clear_pixel_u8);
 
+    int width, height, channels;
+    float* hdr_data = stbi_loadf("textures/skybox.hdr", &width, &height, &channels, 4);
+    
+    if (hdr_data) {
+        core_->CreateImage(width, height, 
+                            grassland::graphics::IMAGE_FORMAT_R32G32B32A32_SFLOAT,
+                            &hdr_skybox_);
+        
+        // 上传数据
+        hdr_skybox_->UploadData(hdr_data);
+        
+        stbi_image_free(hdr_data);
+        grassland::LogInfo("HDR skybox loaded: {}x{}", width, height);
+    } else {
+        grassland::LogWarning("Failed to load HDR skybox, using dummy image");
+        float fallback[4] = {0.5f, 0.7f, 1.0f, 1.0f}; // 天空蓝色
+        core_->CreateImage(1, 1, 
+                            grassland::graphics::IMAGE_FORMAT_R32G32B32A32_SFLOAT,
+                            &hdr_skybox_);
+        hdr_skybox_->UploadData(fallback);
+    }
+
     // Create a default sampler
     grassland::graphics::SamplerInfo sampler_info{};
     sampler_info.min_filter = grassland::graphics::FILTER_MODE_LINEAR;
@@ -427,6 +453,16 @@ void Application::OnInit() {
     sampler_info.address_mode_v = grassland::graphics::ADDRESS_MODE_REPEAT;
     sampler_info.address_mode_w = grassland::graphics::ADDRESS_MODE_REPEAT;
     core_->CreateSampler(sampler_info, &dummy_sampler_);
+
+    // Create skybox sampler
+    grassland::graphics::SamplerInfo skybox_sampler_info{};
+    skybox_sampler_info.min_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    skybox_sampler_info.mag_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    skybox_sampler_info.mip_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    skybox_sampler_info.address_mode_u = grassland::graphics::ADDRESS_MODE_REPEAT;
+    skybox_sampler_info.address_mode_v = grassland::graphics::ADDRESS_MODE_CLAMP_TO_EDGE; // 防止极点拉伸
+    skybox_sampler_info.address_mode_w = grassland::graphics::ADDRESS_MODE_REPEAT;
+    core_->CreateSampler(skybox_sampler_info, &skybox_sampler_);
     
     // Create aggregated faces and triangle index buffers from scene entities
     {
@@ -1045,6 +1081,18 @@ void Application::OnRender() {
     // Bind sampler (space13)
     command_context->CmdBindResources(13, { dummy_sampler_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context -> CmdBindResources(14, {point_lights_buffer_. get()}, grassland::graphics::BIND_POINT_RAYTRACING);
+    std::vector<grassland::graphics::Image*> norm_list;
+    norm_list.reserve(MAX_TEXTURE_COUNT);
+    for(int i = 0 ; i < scene_->GetNormalCount(); ++i) {
+        norm_list.push_back(scene_->GetNormal(i));
+    }
+    for(int i = scene_->GetNormalCount(); i < MAX_TEXTURE_COUNT; ++i) {
+        norm_list.push_back(dummy_image_.get());
+    }
+    command_context->CmdBindResources(15, norm_list, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(16, { dummy_sampler_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(17, {hdr_skybox_.get()}, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(18, {skybox_sampler_.get()}, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdDispatchRays(window_->GetWidth(), window_->GetHeight(), 1);
     
     // When camera is disabled, increment sample count and use accumulated image

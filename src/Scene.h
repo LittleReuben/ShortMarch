@@ -74,7 +74,9 @@ public:
     // Texture management
     int LoadTexture(const std::string& filepath);  // Returns texture index
     grassland::graphics::Image* GetTexture(int index) const;
+    grassland::graphics::Image* GetNormal(int index) const;
     size_t GetTextureCount() const { return textures_.size(); }
+    size_t GetNormalCount() const { return normals_.size(); }
 
     // Get all point lights
     const std :: vector<PointLight> & GetPointLights() const { return point_lights_; }
@@ -107,5 +109,7 @@ private:
     // Texture management
     std::vector<std::unique_ptr<grassland::graphics::Image>> textures_;
     std::unordered_map<std::string, int> texture_path_to_index_;
+    //Normal management
+    std::vector<std::unique_ptr<grassland::graphics::Image>> normals_;
 };
 

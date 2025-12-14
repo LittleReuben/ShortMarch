@@ -11,6 +11,7 @@ struct Material {
   float roughness;
   float metallic;
   int texture_index;
+  int normal_index; 
   float3 emission;
 };
 
@@ -60,6 +61,10 @@ StructuredBuffer<uint> global_indices : register(t2, space10);         // Global
 Texture2D<float4> textures[64] : register(t0, space12);                          // Texture array (bindless)
 SamplerState g_Sampler : register(s0, space13);
 StructuredBuffer <PointLight> point_lights : register (t0, space14);
+Texture2D<float4> normalmaps[64] : register(t0, space15); 
+SamplerState normalmap_sampler : register(s0, space16);
+Texture2D<float4>hdr_skybox: register(t0, space17);
+SamplerState skybox_sampler : register(s0, space18);
 
 struct RayPayload {
   float3 color;
@@ -84,6 +89,17 @@ uint tea(uint val0, uint val1) {
     v1 += ((v0 << 4) + 0xad90777d) ^ (v0 + s0) ^ ((v0 >> 5) + 0x7e95761e);
   }
   return v0;
+}
+
+float2 DirectionToUV(float3 dir) {
+  float phi = atan2(dir.z, dir.x);
+  float theta = acos(dir.y);
+  return float2(phi / (2.0 * PI) + 0.5, theta / PI);
+}
+
+float3 SampleSkybox(float3 direction) {
+  float2 uv = DirectionToUV(normalize(direction));
+  return hdr_skybox.SampleLevel(skybox_sampler, uv, 0).rgb;
 }
 
 [shader("raygeneration")] void RayGenMain() {
@@ -152,11 +168,10 @@ uint tea(uint val0, uint val1) {
 }
 
 [shader("miss")] void MissMain(inout RayPayload payload) {
-  // Sky gradient
-  float t = 0.5 * (normalize(WorldRayDirection()).y + 1.0);
-  payload.color = lerp(float3(1.0, 1.0, 1.0), float3(0.5, 0.7, 1.0), t);
+  payload.color = SampleSkybox(WorldRayDirection());
   payload.hit = false;
-  payload.instance_id = 0xFFFFFFFF; // Invalid ID for miss
+  payload.instance_id = 0xFFFFFFFF;
+// Invalid ID for miss
 }
 
 
@@ -217,7 +232,7 @@ float luminance(float3 c) {
   return 0.2126 * c. r + 0.7152 * c. g + 0.0722 * c. b;
 }
 
-Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr) {
+Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr, inout float3 N, in float3 T, in float3 B) {
   // Load instance metadata
   InstanceMetadata metadata = instance_metadata[instance_id];
   
@@ -246,8 +261,29 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     float2 uvx2 = global_uvs[uv_offset + idx2];
     float2 uv = (1.0 - bc.x - bc.y) * uvx0 + bc.x * uvx1 + bc.y * uvx2; 
     uv.y = 1 - uv.y;
+    
+    // Sample base color texture
     float4 texture_color = textures[mat.texture_index].SampleLevel(g_Sampler, uv, 0);
-    mat.base_color = texture_color.rgb; 
+    mat.base_color = texture_color.rgb;
+    
+    // Sample normal map
+  }
+  if(mat.normal_index != -1) {
+      float3 normalMapSample = normalmaps[mat.texture_index].SampleLevel(normalmap_sampler, uv, 0).xyz;
+      
+      // Convert from [0,1] to [-1,1] range
+      float3 tangentNormal = normalMapSample * 2.0 - 1.0;
+      
+      // Build TBN matrix (tangent space to world space)
+      float3x3 TBN = float3x3(T, B, N);
+      
+      // Transform normal from tangent space to world space
+      N = normalize(mul(tangentNormal, TBN));
+      
+      // Ensure normal faces the correct direction
+      if (dot(N, -WorldRayDirection()) < 0.0)
+        N = -N;
+
   }
   return mat;
 }
@@ -256,19 +292,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
 
 [shader("closesthit")] void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr) {
   uint material_id = InstanceID(), primitive_id = PrimitiveIndex();
-  // Load material
-  Material mat = getMaterial(material_id, primitive_id, attr);
-  mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
-  if (Rand(payload. seed) < p) {
-    payload. hit = true;
-    payload. instance_id = material_id;
-    payload. color = mat. emission;
-    return ;
-  }
-  if (payload. depth > 20) {
-    payload. color = float3 (0.0, 0.0, 0.0);
-    return ;
-  }
+  
   // Calculate normal
   uint id = offset[material_id] + primitive_id;
   uint3 vid = triangles[id];
@@ -283,6 +307,20 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   if (abs(dot(N, B)) > 1e-6)
     B = normalize(B - dot(N, B) * N);
   float3 T = cross(N, B);
+  
+  // Load material (this will also update N with normal map if available)
+  Material mat = getMaterial(material_id, primitive_id, attr, N, T, B);
+  mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
+  if (Rand(payload. seed) < p) {
+    payload. hit = true;
+    payload. instance_id = material_id;
+    payload. color = mat. emission;
+    return ;
+  }
+  if (payload. depth > 20) {
+    payload. color = float3 (0.0, 0.0, 0.0);
+    return ;
+  }
   float3x3 M = transpose(float3x3 (T, B, N));
   // Sample a direction
   // float phi = Rand(payload. seed) * 2 * PI, cosTheta = Rand(payload. seed), sinTheta = sqrt(1 - sqr(cosTheta));
