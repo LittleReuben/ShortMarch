@@ -1,5 +1,6 @@
 #pragma once
 #include "long_march.h"
+float toneMapping(float);
 
 // Film class for accumulating ray tracing samples over time
 // Used for progressive rendering when camera is stationary

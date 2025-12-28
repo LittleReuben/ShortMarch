@@ -2,6 +2,7 @@
 #include "Material.h"
 #include "Entity.h"
 #include "Scene.h"
+#include "Film.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "imgui.h"
@@ -21,8 +22,8 @@
 namespace {
 #include "built_in_shaders.inl"
 }
-const int MAX_TEXTURE_COUNT = 64;
-const float fov = 90.0f;
+const int MAX_TEXTURE_COUNT = 256;
+const float fov = 70.0f;
 Application::Application(grassland::graphics::BackendAPI api) {
     grassland::graphics::CreateCore(api, grassland::graphics::Core::Settings{}, &core_);
     core_->InitializeLogicalDeviceAutoSelect(true);
@@ -190,7 +191,7 @@ void Application::OnMouseButton(int button, int action, int mods, double xpos, d
 
 void Application::OnInit() {
     alive_ = true;
-    core_->CreateWindowObject(1280, 720,
+    core_->CreateWindowObject(1920, 1060,
         ((core_->API() == grassland::graphics::BACKEND_API_VULKAN) ? "[Vulkan]" : "[D3D12]") +
         std::string(" Ray Tracing Scene Demo"),
         &window_);
@@ -230,14 +231,14 @@ void Application::OnInit() {
     // {
     //     auto ground = std::make_shared<Entity>(
     //         "meshes/cube.obj",
-    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f)), 
-    //                   glm::vec3(10.0f, 0.1f, 10.0f))
+    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.5f, 0.3f, 0.2f), 1.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), 
+    //                   glm::vec3(10.0f, 0.05f, 10.0f))
     //     );
     //     scene_->AddEntity(ground);
     // }
 
-    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.0f, 0.7f, 0.0f), glm :: vec3 (3.0f, 2.0f, 1.0f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (.25f, 0.4f, -.15f), glm :: vec3 (.3f, .2f, .1f)));
 
     // Red sphere (using octahedron as sphere substitute)
     // {
@@ -269,15 +270,7 @@ void Application::OnInit() {
     //     scene_->AddEntity(blue_cube);
     // }
 
-    // {
-    //     auto small_cube = std::make_shared<Entity>(
-    //         "meshes/cube.obj",
-    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, -0.75f, 0.0f)), 
-    //                   glm::vec3(0.1f, 0.1f, 0.1f))
-    //     );
-    //     scene_->AddEntity(small_cube);
-    // }
+    
     // for (int i=-2; i<=+2; i++)
     //     for (int j=-2; j<=+2; j++) {
     //         auto cube = std::make_shared<Entity>("meshes/cube.obj", 
@@ -317,12 +310,39 @@ void Application::OnInit() {
     
     {
         auto MC = std::make_shared<Entity>(
-            "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
+            "meshes/MeshResources/Minecraft/cave.obj",
             Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
         );
         scene_ -> AddEntity(MC);
     }
+    {
+        auto small_cube = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(0.5f, 0.3f, 0.1f), 0.0f, 0.0f, glm::vec3(120.0f, 50.0f, 20.0f)),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.25f, 0.37f, -0.15f)), 
+                      glm::vec3(0.0075f, 0.0075f, 0.0075f))
+        );
+        scene_->AddEntity(small_cube);
+    }
+
+    // {
+    //     auto MC = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Minecraft/village.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
+    //     );
+    //     scene_ -> AddEntity(MC);
+    // }
+    // {
+    //     auto small_cube = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(1.0f, 0.6f, 0.2f), 0.0f, 0.0f, glm::vec3(800.0f, 240.0f, 30.0f)),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(200.0f, 60.0f, 60.0f)), 
+    //                   glm::vec3(5.0f, 5.0f, 5.0f))
+    //     );
+    //     scene_->AddEntity(small_cube);
+    // }
 
     // {
     //     auto Eyeball = std::make_shared<Entity>(
@@ -387,11 +407,15 @@ void Application::OnInit() {
 
     core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "RayGenMain", "lib_6_3", &raygen_shader_);
     core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "MissMain", "lib_6_3", &miss_shader_);
-    core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ShadowMiss", "lib_6_3", &shadow_miss_shader_);
     core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ClosestHitMain", "lib_6_3", &closest_hit_shader_);
+    core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ShadowClosestHit", "lib_6_3", &shadow_closest_hit_shader_);
+    core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ShadowHit", "lib_6_3", &shadow_hit_shader_);
+    core_->CreateShader(GetShaderCode("shaders/shader.hlsl"), "ShadowMiss", "lib_6_3", &shadow_miss_shader_);
     grassland::LogInfo("Shader compiled successfully");
 
     core_->CreateRayTracingProgram(raygen_shader_.get(), miss_shader_.get(), closest_hit_shader_.get(), &program_);
+    // Hit group 1: any-hit only for shadow rays (uses default miss shader 0)
+    program_ -> AddHitGroup(shadow_closest_hit_shader_. get(), shadow_hit_shader_. get());
     program_ -> AddMissShader(shadow_miss_shader_. get());
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_ACCELERATION_STRUCTURE, 1);  // space0
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space1 - color output
@@ -437,7 +461,7 @@ void Application::OnInit() {
     dummy_image_->UploadData(clear_pixel_u8);
 
     int width, height, channels;
-    float* hdr_data = NULL; //stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/background1.hdr", &width, &height, &channels, 4);
+    float* hdr_data = NULL; // stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/kloppenheim_07_puresky_4k.hdr", &width, &height, &channels, 4);
     
     if (hdr_data) {
         core_->CreateImage(width, height, 
@@ -451,7 +475,7 @@ void Application::OnInit() {
         grassland::LogInfo("HDR skybox loaded: {}x{}", width, height);
     } else {
         grassland::LogWarning("Failed to load HDR skybox, using dummy image");
-        float fallback[4] = {0.5f, 0.7f, 1.0f, 1.0f}; // 天空蓝色
+        float fallback[4] = {0.2f, 0.6f, 1.0f, 1.0f}; // 天空蓝色
         core_->CreateImage(1, 1, 
                             grassland::graphics::IMAGE_FORMAT_R32G32B32A32_SFLOAT,
                             &hdr_skybox_);
@@ -460,9 +484,9 @@ void Application::OnInit() {
 
     // Create a default sampler
     grassland::graphics::SamplerInfo sampler_info{};
-    sampler_info.min_filter = grassland::graphics::FILTER_MODE_LINEAR;
-    sampler_info.mag_filter = grassland::graphics::FILTER_MODE_LINEAR;
-    sampler_info.mip_filter = grassland::graphics::FILTER_MODE_LINEAR;
+    sampler_info.min_filter = grassland::graphics::FILTER_MODE_NEAREST;
+    sampler_info.mag_filter = grassland::graphics::FILTER_MODE_NEAREST;
+    sampler_info.mip_filter = grassland::graphics::FILTER_MODE_NEAREST;
     sampler_info.address_mode_u = grassland::graphics::ADDRESS_MODE_REPEAT;
     sampler_info.address_mode_v = grassland::graphics::ADDRESS_MODE_REPEAT;
     sampler_info.address_mode_w = grassland::graphics::ADDRESS_MODE_REPEAT;
@@ -608,6 +632,7 @@ void Application::OnClose() {
     program_.reset();
     raygen_shader_.reset();
     miss_shader_.reset();
+    shadow_hit_shader_.reset();
     closest_hit_shader_.reset();
 
     scene_.reset();
@@ -780,7 +805,9 @@ void Application::SaveAccumulatedOutput(const std::string& filename) {
         float g = accumulated_colors[i * 4 + 1] / static_cast<float>(sample_count);
         float b = accumulated_colors[i * 4 + 2] / static_cast<float>(sample_count);
         float a = 1; // accumulated_colors[i * 4 + 3] / static_cast<float>(sample_count);
-        
+        r = toneMapping(r);
+        g = toneMapping(g);
+        b = toneMapping(b);
         // Clamp to [0, 1] and convert to 8-bit
         byte_data[i * 4 + 0] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, r)) * 255.0f);
         byte_data[i * 4 + 1] = static_cast<uint8_t>(std::max(0.0f, std::min(1.0f, g)) * 255.0f);

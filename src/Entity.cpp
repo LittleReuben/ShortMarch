@@ -75,7 +75,8 @@ bool Entity::LoadMesh(const std::string& obj_file_path) {
             mat.emission = glm::vec3(0.0f);
             // math_mesh.MaterialData now includes emission; copy it
             mat.emission = glm::vec3(mat_data.emission[0], mat_data.emission[1], mat_data.emission[2]);
-            mat.transmission = glm::vec3(mat_data.transparency[0], mat_data.transparency[1], mat_data.transparency[2]);
+            mat.transmission = glm::vec3(mat_data.transmission[0], mat_data.transmission[1], mat_data.transmission[2]);
+            mat.alpha = mat_data. transparency;
 
             
             

@@ -46,7 +46,7 @@ void Film::Reset() {
     grassland::LogInfo("Film accumulation reset");
 }
 
-float toneMapping(float x) { x *= 2; return x / (1 + x); }
+float toneMapping(float x) { x *= 3; return x / (1 + x); }
 
 void Film::DevelopToOutput() {
     // This would ideally be done in a compute shader for efficiency

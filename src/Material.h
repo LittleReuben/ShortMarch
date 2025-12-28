@@ -14,6 +14,10 @@ struct MaterialGPUData {
     int normal_index;
     glm::vec3 emission;           // Padding for GPU alignment (total size = 32 bytes)
     glm::vec3 transmission;
+    float alpha;
+    glm::vec3 volume_emission;
+    float volume_density;
+    glm::vec3 volume_scatter;
 };
 
 // Material structure for ray tracing with texture support
@@ -33,6 +37,11 @@ struct Material {
     int normal_index;
     glm::vec3 emission;           
     glm::vec3 transmission;
+    float alpha;
+
+    glm::vec3 volume_emission;
+    float volume_density;
+    glm::vec3 volume_scatter;    
     
     // Texture path (CPU only, not uploaded to GPU)
     std::string texture_path;
@@ -48,11 +57,15 @@ struct Material {
         , normal_index(-1)
         , emission(0.0f, 0.0f, 0.0f) 
         , transmission(0.0f, 0.0f, 0.0f)
+        , alpha(1.0f)
+        , volume_emission(0.0f, 0.0f, 0.0f)
+        , volume_density(0.0f)
+        , volume_scatter(0.0f, 0.0f, 0.0f)
         , texture_path("") 
         , normal_path("") {}
 
     // Constructor with color (for manual material specification)
-    Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f), const glm::vec3& trans = glm::vec3(0.0f, 0.0f, 0.0f))
+    Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f), const glm::vec3& trans = glm::vec3(0.0f, 0.0f, 0.0f), float a = 1.0f, const glm::vec3& v_emission = glm::vec3(0.0f, 0.0f, 0.0f), float v_density = 0.0f, const glm::vec3& v_scatter = glm::vec3(0.0f, 0.0f, 0.0f) )
         : base_color(color)
         , roughness(rough)
         , metallic(metal)
@@ -60,12 +73,17 @@ struct Material {
         , normal_index(-1)
         , emission(glow)
         , transmission(trans)
+        , alpha(a)
+        , volume_emission(v_emission)
+        , volume_density(v_density)
+        , volume_scatter(v_scatter)
         , texture_path("") 
         , normal_path("") {}
     
     // Helper methods
     bool HasTexture() const { return !texture_path.empty(); }
     bool HasNormal() const { return !normal_path.empty(); }
+    bool IsVolumeMedium() const {return volume_density > 0.0f;}
     const std::string& GetTexturePath() const { return texture_path; }
     const std::string& GetNormalPath() const { return normal_path; }
     void SetTexturePath(const std::string& path) { texture_path = path; }
@@ -87,6 +105,10 @@ struct Material {
         gpu_data.normal_index = normal_index;
         gpu_data.emission = emission; 
         gpu_data.transmission = transmission; 
+        gpu_data.alpha = alpha; 
+        gpu_data.volume_emission = volume_emission;
+        gpu_data.volume_density = volume_density;
+        gpu_data.volume_scatter = volume_scatter;
         return gpu_data;
     }
 };
