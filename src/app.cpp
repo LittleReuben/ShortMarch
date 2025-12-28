@@ -227,15 +227,15 @@ void Application::OnInit() {
 
     // Add entities to the scene
     // Ground plane - a cube scaled to be flat
-    {
-        auto ground = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f)), 
-                      glm::vec3(10.0f, 0.1f, 10.0f))
-        );
-        scene_->AddEntity(ground);
-    }
+    // {
+    //     auto ground = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -2.0f, 0.0f)), 
+    //                   glm::vec3(10.0f, 0.1f, 10.0f))
+    //     );
+    //     scene_->AddEntity(ground);
+    // }
 
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.0f, 0.7f, 0.0f), glm :: vec3 (3.0f, 2.0f, 1.0f)));
 
@@ -315,23 +315,23 @@ void Application::OnInit() {
     //     scene_->AddEntity(RockSet);
     // }
     
-    // {
-    //     auto MC = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
-    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
-    //     );
-    //     scene_ -> AddEntity(MC);
-    // }
-
     {
-        auto Eyeball = std::make_shared<Entity>(
-            "meshes/MeshResources/Eyeball/eyeball.obj", 
+        auto MC = std::make_shared<Entity>(
+            "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
             Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
         );
-        scene_->AddEntity(Eyeball);
+        scene_ -> AddEntity(MC);
     }
+
+    // {
+    //     auto Eyeball = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Eyeball/eyeball.obj", 
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
+    //     );
+    //     scene_->AddEntity(Eyeball);
+    // }
 
     // Build acceleration structures
     scene_->BuildAccelerationStructures();
@@ -414,11 +414,12 @@ void Application::OnInit() {
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);                 // space16 - Normal map sampler
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_IMAGE, 1);      // space17 - HDR skybox
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_SAMPLER, 1);    // space18 - skybox sampler
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space19 - emissive triangles (id + material)
 
     program_->Finalize();
 
     // Create a small buffer to hold the sample count (space8 expects a uniform buffer)
-    core_->CreateBuffer(16, grassland::graphics::BUFFER_TYPE_DYNAMIC, &misc_buffer_);
+    core_->CreateBuffer(32, grassland::graphics::BUFFER_TYPE_DYNAMIC, &misc_buffer_);
     uint32_t initial_sample_count = static_cast<uint32_t>(film_->GetSampleCount());
     misc_buffer_->UploadData(&initial_sample_count, sizeof(uint32_t), 0);
     uint32_t plcnt = static_cast <uint32_t> ((scene_ -> GetPointLights()). size());
@@ -436,7 +437,7 @@ void Application::OnInit() {
     dummy_image_->UploadData(clear_pixel_u8);
 
     int width, height, channels;
-    float* hdr_data = stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/background1.hdr", &width, &height, &channels, 4);
+    float* hdr_data = NULL; //stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/background1.hdr", &width, &height, &channels, 4);
     
     if (hdr_data) {
         core_->CreateImage(width, height, 
@@ -482,6 +483,7 @@ void Application::OnInit() {
         std::vector<uint32_t> index_begin;
         std::vector<glm::vec3> aggregated_vertices;
         std::vector<uint32_t> aggregated_triangles;
+        std::vector<glm::uvec2> emissive_pairs;
 
         int vertex_offset = 0;
         for (const auto &entity : scene_->GetEntities()) {
@@ -513,6 +515,41 @@ void Application::OnInit() {
                 for (size_t i = 0; i < icount; ++i) {
                     aggregated_triangles.push_back(static_cast<uint32_t>(itmp[i] + vertex_offset));
                 }
+
+                size_t tri_count = icount / 3;
+                uint32_t tri_base = index_begin.back();
+                if (entity->HasMTLMaterials()) {
+                    const auto &mats = entity->GetMaterials();
+                    if (entity->HasMaterialIDs()) {
+                        const int *mat_ids = entity->GetMaterialIDs();
+                        int mat_offset = entity->GetMaterialOffset();
+                        for (size_t t = 0; t < tri_count; ++t) {
+                            int local_id = mat_ids ? mat_ids[t] : 0;
+                            if (local_id >= 0 && static_cast<size_t>(local_id) < mats.size()) {
+                                const auto &m = mats[local_id];
+                                if (m.emission.x != 0.0f || m.emission.y != 0.0f || m.emission.z != 0.0f) {
+                                    emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(mat_offset + local_id));
+                                }
+                            }
+                        }
+                    } else {
+                        int global_mat_id = entity->GetMaterialOffset();
+                        const auto &m = mats.empty() ? entity->GetDefaultMaterial() : mats[0];
+                        if (m.emission.x != 0.0f || m.emission.y != 0.0f || m.emission.z != 0.0f) {
+                            for (size_t t = 0; t < tri_count; ++t) {
+                                emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(global_mat_id));
+                            }
+                        }
+                    }
+                } else {
+                    int global_mat_id = entity->GetMaterialOffset();
+                    const auto &m = entity->GetDefaultMaterial();
+                    if (m.emission.x != 0.0f || m.emission.y != 0.0f || m.emission.z != 0.0f) {
+                        for (size_t t = 0; t < tri_count; ++t) {
+                            emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(global_mat_id));
+                        }
+                    }
+                }
             }
 
             vertex_offset += static_cast<int>(vcount);
@@ -543,6 +580,17 @@ void Application::OnInit() {
         core_->CreateBuffer(aggregated_triangles.size() * sizeof(uint32_t),
                             grassland::graphics::BUFFER_TYPE_STATIC, &triangles_buffer_);
         triangles_buffer_->UploadData(aggregated_triangles.data(), aggregated_triangles.size() * sizeof(uint32_t));
+
+        if (emissive_pairs.empty()) {
+            emissive_pairs.emplace_back(0u, 0u);
+            emissive_tri_count_ = 0u;
+        } else {
+            emissive_tri_count_ = static_cast<uint32_t>(emissive_pairs.size());
+        }
+        core_->CreateBuffer(emissive_pairs.size() * sizeof(glm::uvec2),
+                    grassland::graphics::BUFFER_TYPE_STATIC, &emissive_tris_buffer_);
+        emissive_tris_buffer_->UploadData(emissive_pairs.data(), emissive_pairs.size() * sizeof(glm::uvec2));
+        misc_buffer_->UploadData(&emissive_tri_count_, sizeof(uint32_t), sizeof(uint32_t) * 2);
     }
 
     {
@@ -1065,6 +1113,7 @@ void Application::OnRender() {
     command_context->CmdBindResources(7, { film_->GetAccumulatedSamplesImage() }, grassland::graphics::BIND_POINT_RAYTRACING);
     uint32_t sc = static_cast<uint32_t>(film_->GetSampleCount());
     misc_buffer_->UploadData(&sc, sizeof(uint32_t), 0);
+    misc_buffer_->UploadData(&emissive_tri_count_, sizeof(uint32_t), sizeof(uint32_t) * 2);
     command_context->CmdBindResources(8, { misc_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     std::vector<grassland::graphics::Buffer*> buffers = {
         offsets_buffer_.get(),
@@ -1106,6 +1155,7 @@ void Application::OnRender() {
     command_context->CmdBindResources(16, { dummy_sampler_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(17, {hdr_skybox_.get()}, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(18, {skybox_sampler_.get()}, grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(19, { emissive_tris_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdDispatchRays(window_->GetWidth(), window_->GetHeight(), 1);
     
     // When camera is disabled, increment sample count and use accumulated image

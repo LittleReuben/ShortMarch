@@ -13,6 +13,7 @@ struct Material {
   int texture_index;
   int normal_index; 
   float3 emission;
+  float3 transmission;
 };
 
 static float PI = 3.1415926536;
@@ -45,12 +46,13 @@ ConstantBuffer<HoverInfo> hover_info : register(b0, space4);
 RWTexture2D<int> entity_id_output : register(u0, space5);
 RWTexture2D<float4> accumulated_color : register(u0, space6);
 RWTexture2D<int> accumulated_samples : register(u0, space7);
-struct FrameIndexCB {
+struct MiscBlock {
   uint frame_index;
   uint num_point_lights;
-  uint padding[2];
+  uint num_emissive_tris;
+  uint padding[5];
 };
-ConstantBuffer<FrameIndexCB> misc : register(b0, space8);
+ConstantBuffer<MiscBlock> misc : register(b0, space8);
 StructuredBuffer<uint> offset : register(t0, space9);
 StructuredBuffer<float3> vertices : register(t1, space9);
 StructuredBuffer<uint3> triangles : register(t2, space9);
@@ -65,6 +67,7 @@ Texture2D<float4> normalmaps[64] : register(t0, space15);
 SamplerState normalmap_sampler : register(s0, space16);
 Texture2D<float4>hdr_skybox: register(t0, space17);
 SamplerState skybox_sampler : register(s0, space18);
+StructuredBuffer<uint2> emissive_tris : register(t0, space19);
 
 struct RayPayload {
   float3 color;
@@ -183,7 +186,7 @@ struct ShadowPayload { bool blocked; };
 
 bool IsLightVisible(float3 origin, float3 dir, float dist_to_light) {
   ShadowPayload sp;
-  sp.blocked = false;
+  sp.blocked = true;
 
   RayDesc shadow;
   shadow.Origin = origin;
@@ -265,6 +268,12 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     // Sample base color texture
     float4 texture_color = textures[mat.texture_index].SampleLevel(g_Sampler, uv, 0);
     mat.base_color = texture_color.rgb;
+    // If the texture sample is fully transparent (0,0,0,0), mark as transmissive
+
+    float3 tmp = float3(1.0, 1.0, 1.0)-mat.transmission;
+    tmp = tmp * texture_color.a;
+    mat.transmission = float3(1.0, 1.0, 1.0)-tmp;
+    
     
     // Sample normal map
     if(mat.normal_index != -1) {
@@ -295,6 +304,18 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   return mat;
 }
 
+void getOrthonormalBasis(float3 n, out float3 t, out float3 b) {
+  if (n.z < -0.999999f) { // 特殊情况处理
+    t = float3 (0.0, -1.0, 0.0);
+    b = float3 (-1.0, 0.0, 0.0);
+    return;
+  }
+  float a = 1.0 / (1.0 + n.z);
+  float d = -n.x * n.y * a;
+  t = normalize(float3 (1.0 - n.x * n.x * a, d, -n.x));
+  b = normalize(float3 (d, 1.0 - n.y * n.y * a, -n.y));
+}
+
 #define assert(cond) if (!(cond)) { while (1); }
 
 [shader("closesthit")] void ClosestHitMain(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr) {
@@ -310,21 +331,30 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   // N = normalize(mul((float3x3) ObjectToWorld3x4(), N));
   if (dot(WorldRayDirection(), N) > 0.0)
     N = - N;
-  float3 B = normalize(p1 - p0);
-  if (abs(dot(N, B)) > 1e-6)
-    B = normalize(B - dot(N, B) * N);
-  float3 T = cross(N, B);
+  float3 planeN = N;
+  // float3 B = normalize(p1 - p0);
+  // if (abs(dot(N, B)) > 1e-6)
+  //   B = normalize(B - dot(N, B) * N);
+  // float3 T = cross(N, B);
   
   // Load material (this will also update N with normal map if available)
   Material mat = getMaterial(material_id, primitive_id, attr, N, p0, p1, p2);
+  payload. color = mat. transmission;
+  return ;
+  float3 T, B;
+  getOrthonormalBasis(N, T, B);
+  
+  float3 light_contribution = float3 (0.0, 0.0, 0.0);
+  if (payload. depth == 0) light_contribution = mat. emission;
+
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   if (Rand(payload. seed) < p) {
     payload. hit = true;
     payload. instance_id = material_id;
-    payload. color = mat. emission;
+    payload. color = light_contribution;
     return ;
   }
-  if (payload. depth > 20) {
+  if (payload. depth >= 30) {
     payload. color = float3 (0.0, 0.0, 0.0);
     return ;
   }
@@ -353,7 +383,6 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   float pd = dot(N, inDir) / PI, ps = calcD(alpha, n_h) * n_h / (4 * dot(outDir, h));
   float P = p_mix * ps + (1 - p_mix) * pd;
 
-  float3 light_contribution = float3 (0.0, 0.0, 0.0);
   float3 hitpos = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
   for (uint i=0; i<misc.num_point_lights; i++) {
     float3 lightDir = point_lights[i]. position - hitpos;
@@ -361,21 +390,46 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     if (dis < 1e-4) continue;
     lightDir /= dis;
     if (dot(N, lightDir) <= 0.0f) continue;
-    if (IsLightVisible(hitpos + 1e-4 * inDir, lightDir, dis - 1e-4)) {
+    if (IsLightVisible(hitpos + 1e-4 * lightDir, lightDir, dis - 1e-4)) {
       light_contribution += BRDF(mat, lightDir, outDir, N) * dot(N, lightDir) * point_lights[i]. color / sqr(dis);
     }
   }
+  for (uint i=0; i<misc.num_emissive_tris; i++) {
+    uint tri_id = emissive_tris[i]. x, mat_id = emissive_tris[i]. y;
+    if (tri_id == id) continue;
+    uint3 vid = triangles[tri_id];
+    float3 p0 = vertices[vid.x];
+    float3 p1 = vertices[vid.y];
+    float3 p2 = vertices[vid.z];
+    float3 Ni = cross(p1 - p0, p2 - p0);
+    float area = length(Ni); Ni /= area, area /= 2;
+    float s = sqrt(Rand(payload. seed)), t = Rand(payload. seed);
+    float3 pos = (1 - s) * p0 + s * t * p1 + s * (1 - t) * p2;
+    float3 lightDir = pos - hitpos;
+    float dis = length(lightDir);
+    if (dis < 1e-4) continue;
+    lightDir /= dis;
+    float N_D = dot(N, lightDir), Ni_D = abs(dot(Ni, lightDir));
+    if (N_D <= 0.0f) continue;
+    if (IsLightVisible(hitpos + 1e-4 * lightDir, lightDir, dis - 2e-4)) {
+      light_contribution += BRDF(mat, lightDir, outDir, N) * materials[mat_id]. emission * N_D * Ni_D / sqr(dis) * area;
+    }
+  }
 
-  // Bounce the ray
-  RayDesc ray;
-  ray. Origin = hitpos + 1e-4 * inDir;
-  ray. Direction = inDir;
-  ray. TMin = 1e-3;
-  ray. TMax = 1e4;
-  payload. depth ++;
-  TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
-  // Calculate color
-  payload. color = payload. color * BRDF(mat, inDir, outDir, N) * dot(N, inDir) / P / (1 - p) + mat. emission + light_contribution;
+  if (dot(planeN, inDir) <= 0)
+    payload. color = light_contribution;
+  else {
+    // Bounce the ray
+    RayDesc ray;
+    ray. Origin = hitpos + 1e-4 * inDir;
+    ray. Direction = inDir;
+    ray. TMin = 1e-3;
+    ray. TMax = 1e4;
+    payload. depth ++;
+    TraceRay(as, RAY_FLAG_NONE, 0xFF, 0, 1, 0, ray, payload);
+    // Calculate color
+    payload. color = payload. color * BRDF(mat, inDir, outDir, N) * dot(N, inDir) / P / (1 - p) + light_contribution;
+  }
   payload. hit = true;
   payload. instance_id = InstanceID();
 }

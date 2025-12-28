@@ -70,6 +70,8 @@ private:
     std::unique_ptr<grassland::graphics::Buffer> vertices_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> triangles_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> point_lights_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> emissive_tris_buffer_;
+    uint32_t emissive_tri_count_ = 0;
     bool alive_{ false };
 
     void ProcessInput(); // Helper function for keyboard input

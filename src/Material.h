@@ -13,6 +13,7 @@ struct MaterialGPUData {
     int texture_index;
     int normal_index;
     glm::vec3 emission;           // Padding for GPU alignment (total size = 32 bytes)
+    glm::vec3 transmission;
 };
 
 // Material structure for ray tracing with texture support
@@ -31,6 +32,7 @@ struct Material {
     int texture_index;
     int normal_index;
     glm::vec3 emission;           
+    glm::vec3 transmission;
     
     // Texture path (CPU only, not uploaded to GPU)
     std::string texture_path;
@@ -45,17 +47,19 @@ struct Material {
         , texture_index(-1)
         , normal_index(-1)
         , emission(0.0f, 0.0f, 0.0f) 
+        , transmission(0.0f, 0.0f, 0.0f)
         , texture_path("") 
         , normal_path("") {}
 
     // Constructor with color (for manual material specification)
-    Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f))
+    Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f), const glm::vec3& trans = glm::vec3(0.0f, 0.0f, 0.0f))
         : base_color(color)
         , roughness(rough)
         , metallic(metal)
         , texture_index(-1)
         , normal_index(-1)
         , emission(glow)
+        , transmission(trans)
         , texture_path("") 
         , normal_path("") {}
     
@@ -82,6 +86,7 @@ struct Material {
         gpu_data.texture_index = texture_index;
         gpu_data.normal_index = normal_index;
         gpu_data.emission = emission; 
+        gpu_data.transmission = transmission; 
         return gpu_data;
     }
 };
