@@ -83,7 +83,7 @@ struct RayPayload {
   bool count_emission; // 如果从头到现在都是透射就是 1, 否则就是 0
   float3 nxt_origin;
   float3 nxt_direction;
-  int current_medium_id;
+  int current_medium_id;// 当前所在介质的材质 ID，-1 表示不在任何介质中
 };
 
 float Rand(inout uint state) {
@@ -334,29 +334,23 @@ void SampleVolumeContribution(int mat_id, float t_end, out float3 emission, out 
   // Default values: no emission, full transmittance
   emission = float3(0.0, 0.0, 0.0);
   transmittance = float3(1.0, 1.0, 1.0);
-  
   // If no medium or invalid material ID, return defaults
   if (mat_id < 0) {
     return;
   }
-  
   Material mat = materials[mat_id];
-  
   // Check if this material has volumetric properties
   if (mat.volume_density <= 0.0) {
     return;
   }
-  
   float distance = t_end;
   float optical_depth = mat.volume_density * distance;
-  
   // Beer-Lambert law: transmittance = exp(-extinction * distance)
   // Extinction coefficient = density (total attenuation from both scattering and absorption)
   // 使用 Beer-Lambert 定律计算透射率：transmittance = exp(-σ_t × distance)
   // 消光系数 σ_t = volume_density（包含散射和吸收的总衰减）
   float extinction = mat.volume_density;
   transmittance = exp(-extinction * distance);
-  
   // Volumetric emission (attenuated by self-absorption)
   // 体积发光贡献（被自吸收衰减）
   // 沿路径积分：∫ emission × exp(-σ_t × t) dt = emission × (1 - exp(-σ_t × distance)) / σ_t
@@ -364,7 +358,7 @@ void SampleVolumeContribution(int mat_id, float t_end, out float3 emission, out 
   emission = mat.volume_emission * (1.0 - exp(-optical_depth));
 }
 
-Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr, inout float3 N, in float3 p0, in float3 p1, in float3 p2) {
+Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriangleIntersectionAttributes attr, inout float3 N, in float3 p0, in float3 p1, in float3 p2, out int medium_id) {
   // Load instance metadata
   InstanceMetadata metadata = instance_metadata[instance_id];
   
@@ -379,8 +373,13 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     material_id = metadata.material_id_offset;
   }
   
+  
   // Load material
   Material mat = materials[material_id];
+  if(mat.volume_density > 0.0)
+    medium_id = material_id;
+  else
+    medium_id = -1;
   if(mat.texture_index != -1) {
     float2 bc = attr.barycentrics;
     int uv_offset = instance_metadata[instance_id].uv_offset;
@@ -451,8 +450,13 @@ enum rayComponent {
   SPECULAR, DIFFUSE, TRANSMISSIVE
 } ;
 
-struct ShadowPayload { float3 attenuation; };
-[shader("anyhit")] void ShadowHit(inout ShadowPayload payload, in BuiltInTriangleIntersectionAttributes attr) {
+struct ShadowPayload { 
+  float3 attenuation; 
+  float3 emission;
+  float pre_t;
+  int current_medium_id;
+};
+[shader("anyhit")] void ShadowHit(inout ShadowPayload payload, BuiltInTriangleIntersectionAttributes attr) {
   uint instance_id = InstanceID(), primitive_id = PrimitiveIndex();
   float3 hitpos = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
   uint id = offset[instance_id] + primitive_id;
@@ -462,10 +466,24 @@ struct ShadowPayload { float3 attenuation; };
   float3 p2 = vertices[vid.z];
   float3 N = normalize(cross(p1 - p0, p2 - p0));
   if (dot(WorldRayDirection(), N) > 0.0) N = - N;
-  Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2);
+  if(payload.current_medium_id != -1) {
+    float3 volume_emission, volume_transmittance;
+    SampleVolumeContribution(payload.current_medium_id, RayTCurrent() - payload.pre_t, volume_emission, volume_transmittance);
+    payload. emission += payload.attenuation * volume_emission;
+    payload. attenuation *= volume_transmittance;
+  }
+  int medium_id;
+  Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2, medium_id);
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   float3 F = FresnelSchlick(calcF0(mat), dot(N, - WorldRayDirection()));
-  payload. attenuation *= (1 - mat. alpha) * float3 (1.0, 1.0, 1.0) + mat. alpha * (1 - mat. metallic) * mat. transmission * (1 - F);
+  float3 surface_transmittance = (1 - mat. alpha) * float3 (1.0, 1.0, 1.0) + mat. alpha * (1 - mat. metallic) * mat. transmission * (1 - F);
+  payload. attenuation *= surface_transmittance;
+  if(payload.current_medium_id == medium_id) {
+    payload.current_medium_id = -1;
+  } else {
+    payload.current_medium_id = medium_id;
+  }
+  payload.pre_t = RayTCurrent();
   if (luminance(payload. attenuation) < 1e-3) AcceptHitAndEndSearch();
   else IgnoreHit();
 }
@@ -510,7 +528,104 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
   // float3 T = cross(N, B);
   
   // Load material (this will also update N with normal map if available)
-  Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2);
+  //Tackle volume scattering and emission before surface interaction
+  if(payload.current_medium_id != -1) {
+    float scatter_distance;
+    float3 new_direction, volume_throughput;
+    bool scattered = SampleVolumeScattering(payload.current_medium_id, RayTCurrent(), payload.seed, scatter_distance, new_direction, volume_throughput);
+    if (scattered && scatter_distance < RayTCurrent()) {
+      // Volume scattering event occurs before surface hit
+      float3 scatter_point = WorldRayOrigin() + WorldRayDirection() * scatter_distance;
+      // Account for volume contribution up to scattering point
+      float3 volume_emission, volume_transmittance;
+      SampleVolumeContribution(payload.current_medium_id, scatter_distance, volume_emission, volume_transmittance);
+      payload. color += payload. coef * volume_emission;
+      
+      // Account for the contribution of light sources on scattered point
+      // 计算散射点处点光源和面光源的贡献
+      float3 light_contribution = float3(0.0, 0.0, 0.0);
+      
+      // 各向同性相位函数：p(ω) = 1/(4π)
+      // 对于各向同性散射，光在所有方向上均匀散射
+      float phase_function = IsotropicPhaseFunction();
+      
+      // Point lights contribution
+      for (uint i = 0; i < misc.num_point_lights; i++) {
+        float3 lightDir = point_lights[i].position - scatter_point;
+        float dis = length(lightDir);
+        if (dis < 1e-4) continue;
+        lightDir /= dis;
+        
+        // 计算阴影光线的衰减
+        float3 at = CalcLightAttenuation(scatter_point + 1e-4 * lightDir, lightDir, dis - 1e-4);
+        
+        // 体积散射方程：L_scatter = phase_function × L_light × attenuation / distance²
+        // 概率密度：
+        //   - 空间采样概率：1 (确定性光源位置)
+        //   - 方向采样概率 = phase_function = 1/(4π)
+        // 由于我们对光源进行确定性采样（非随机采样），贡献直接累加，不需要除以采样概率
+        light_contribution += phase_function * at * point_lights[i].color / sqr(dis);
+      }
+      
+      // Emissive triangles (area lights) contribution
+      for (uint i = 0; i < misc.num_emissive_tris; i++) {
+        uint tri_id = emissive_tris[i].x, mat_id = emissive_tris[i].y;
+        uint3 vid = triangles[tri_id];
+        float3 p0 = vertices[vid.x];
+        float3 p1 = vertices[vid.y];
+        float3 p2 = vertices[vid.z];
+        float3 Ni = cross(p1 - p0, p2 - p0);
+        float area = length(Ni);
+        Ni /= area;
+        area /= 2;
+        
+        // 在面光源上均匀采样一点
+        float s = sqrt(Rand(payload.seed)), t = Rand(payload.seed);
+        float3 pos = (1 - s) * p0 + s * t * p1 + s * (1 - t) * p2;
+        float3 lightDir = pos - scatter_point;
+        float dis = length(lightDir);
+        if (dis < 1e-4) continue;
+        lightDir /= dis;
+        
+        // 计算光源表面法线与光线方向的夹角余弦
+        float Ni_D = abs(dot(Ni, -lightDir));
+        if (Ni_D <= 0.0f) continue;
+        
+        // 计算阴影光线的衰减
+        float3 at = CalcLightAttenuation(scatter_point + 1e-4 * lightDir, lightDir, dis - 2e-4);
+        
+        // 面光源的辐射度方程：L_scatter = phase_function × emission × Ni_D × area × attenuation / distance²
+        // 概率密度：
+        //   - 空间采样概率密度 = 1/area (在三角形上均匀采样)
+        //   - 方向采样概率密度 = phase_function = 1/(4π)
+        // 蒙特卡洛估计器：L = phase_function × emission × Ni_D × area / distance² × attenuation
+        // 其中 area 项抵消了采样概率密度 1/area
+        light_contribution += phase_function * at * materials[mat_id].emission * Ni_D * area / sqr(dis);
+      }
+      
+      // 将光源的直接贡献加入颜色
+      // 注意：这里使用 volume_throughput（来自 SampleVolumeScattering）
+      // volume_throughput = exp(-σ_t × t) × (σ_s / σ_t)，包含了散射采样的概率密度修正
+      payload.color += payload.coef * volume_throughput * light_contribution;
+      
+      // 更新 throughput 用于后续的路径追踪
+      // 使用 volume_throughput 而不是 volume_transmittance
+      payload.coef *= volume_throughput;
+     
+      payload. nxt_origin = scatter_point + new_direction * 1e-4;
+      payload. nxt_direction = new_direction;
+      payload. bounce = 1;
+      return ;
+    } else {
+      // No scattering before surface hit, account for volume contribution up to surface
+      float3 volume_emission, volume_transmittance;
+      SampleVolumeContribution(payload.current_medium_id, RayTCurrent(), volume_emission, volume_transmittance);
+      payload. color += payload. coef * volume_emission;
+      payload. coef *= volume_transmittance;
+    }
+  }
+  int medium_id;
+  Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2, medium_id);
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   float3 T, B;
   getOrthonormalBasis(N, T, B);
@@ -612,5 +727,10 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
     payload. coef *= (1 - mat. metallic) * mat. transmission * (1 - F) / P;
     payload. bounce = 1;
     payload. nxt_origin = hitpos + 1e-4 * WorldRayDirection();
+  }
+  if(payload. current_medium_id == medium_id) {
+    payload.current_medium_id = -1;
+  } else {
+    payload.current_medium_id = medium_id;
   }
 }
