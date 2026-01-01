@@ -109,6 +109,7 @@ struct Material {
         gpu_data.volume_emission = volume_emission;
         gpu_data.volume_density = volume_density;
         gpu_data.volume_scatter = volume_scatter;
+        if(gpu_data.volume_density>0.0f)grassland::LogInfo("Volumetric medium found!");
         return gpu_data;
     }
 };

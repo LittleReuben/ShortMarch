@@ -193,7 +193,7 @@ void Calculate(inout RayPayload payload) {
     payload.hit = false;
     payload.instance_id = 0xFFFFFFFF;
   }
-  payload.color += payload. coef * SampleSkybox(WorldRayDirection()) * float3(0.5f, 0.5f, 0.5f);
+  payload.color += payload. coef * SampleSkybox(WorldRayDirection()) * float3(0.1f, 0.1f, 0.1f);
   payload. bounce = 0;
 }
 
@@ -229,25 +229,56 @@ float luminance(float3 c) {
   return 0.2126 * c. r + 0.7152 * c. g + 0.0722 * c. b;
 }
 
-// Isotropic phase function for volume scattering
-// Returns the probability density for scattering in any direction (constant for isotropic)
-// 各向同性相位函数：在所有方向上均匀散射，返回常数概率密度 1/(4π)
-float IsotropicPhaseFunction() {
-  return 1.0 / (4.0 * PI);
+// Henyey-Greenstein phase function for volume scattering
+// g: asymmetry parameter [-1, 1]
+//    g > 0: forward scattering (前向散射)
+//    g < 0: backward scattering (后向散射)
+//    g = 0: isotropic scattering (各向同性)
+// cosTheta: cosine of the angle between incident and scattered directions
+// Returns: probability density p(cosθ) = (1-g²) / (4π(1+g²-2g·cosθ)^(3/2))
+float HenyeyGreensteinPhaseFunction(float g, float cosTheta) {
+  float denom = 1.0 + g * g - 2.0 * g * cosTheta;
+  return (1.0 - g * g) / (4.0 * PI * pow(abs(denom), 1.5));
 }
 
-// Sample a random direction on the unit sphere (isotropic scattering)
-// 在单位球面上均匀采样一个随机方向（各向同性散射）
-// 使用均匀分布采样球面：cosθ ∈ [-1,1], φ ∈ [0,2π]
-float3 SampleIsotropicDirection(inout uint seed) {
-  float cos_theta = 2.0 * Rand(seed) - 1.0;  // [-1, 1] 均匀分布
+// Sample a direction using Henyey-Greenstein phase function
+// g: asymmetry parameter, g > 0 for forward scattering
+// incident_dir: incident direction (normalized)
+// Returns: scattered direction (normalized)
+// 使用 Henyey-Greenstein 相位函数采样散射方向
+// 采样公式：cosθ = (1/(2g)) * [1 + g² - ((1-g²)/(1-g+2g·ξ))²]
+float3 SampleHenyeyGreensteinDirection(float g, float3 incident_dir, inout uint seed) {
+  float cos_theta;
+  
+  if (abs(g) < 1e-3) {
+    // g ≈ 0, use isotropic sampling
+    cos_theta = 2.0 * Rand(seed) - 1.0;
+  } else {
+    // Henyey-Greenstein sampling
+    float xi = Rand(seed);
+    float sqr_term = (1.0 - g * g) / (1.0 - g + 2.0 * g * xi);
+    cos_theta = (1.0 / (2.0 * g)) * (1.0 + g * g - sqr_term * sqr_term);
+    cos_theta = clamp(cos_theta, -1.0, 1.0);
+  }
+  
   float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
   float phi = 2.0 * PI * Rand(seed);
   
-  return float3(
-    sin_theta * cos(phi),
-    sin_theta * sin(phi),
-    cos_theta
+  // Build local coordinate system around incident direction
+  float3 w = incident_dir;
+  float3 u;
+  if (abs(w.z) < 0.999) {
+    u = normalize(cross(float3(0, 0, 1), w));
+  } else {
+    u = normalize(cross(float3(1, 0, 0), w));
+  }
+  float3 v = cross(w, u);
+  
+  // Transform sampled direction to world space
+  return normalize(
+    sin_theta * cos(phi) * u +
+    sin_theta * sin(phi) * v +
+    cos_theta * w
   );
 }
 
@@ -309,8 +340,11 @@ bool SampleVolumeScattering(
   // 散射事件发生！
   scatter_distance = sampled_t;
   
-  // 使用各向同性相位函数采样新的散射方向
-  new_direction = SampleIsotropicDirection(seed);
+  // 使用 Henyey-Greenstein 相位函数采样新的散射方向
+  // g = 0.7 表示较强的前向散射
+  float g = 0.7;
+  float3 incident_dir = normalize(WorldRayDirection());
+  new_direction = SampleHenyeyGreensteinDirection(g, incident_dir, seed);
   
   // 计算通量（throughput）
   // throughput = exp(-σ_t * t) × (σ_s / σ_t)
@@ -354,7 +388,7 @@ void SampleVolumeContribution(int mat_id, float t_end, out float3 emission, out 
   // Volumetric emission (attenuated by self-absorption)
   // 体积发光贡献（被自吸收衰减）
   // 沿路径积分：∫ emission × exp(-σ_t × t) dt = emission × (1 - exp(-σ_t × distance)) / σ_t
-  // 简化为：emission × (1 - transmittance)
+  // 正确公式需要除以密度
   emission = mat.volume_emission * (1.0 - exp(-optical_depth));
 }
 
@@ -376,7 +410,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
   
   // Load material
   Material mat = materials[material_id];
-  if(mat.volume_density > 0.0)
+  if(mat.volume_density > 0.00001f)
     medium_id = material_id;
   else
     medium_id = -1;
@@ -397,6 +431,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     float4 texture_color = textures[mat.texture_index].SampleLevel(g_Sampler, uv, 0);
     mat.base_color = texture_color.rgb;
     mat.alpha = texture_color.a;
+    mat. alpha = 1;
 
     // float3 tmp = float3(1.0, 1.0, 1.0)-mat.transmission;
     // tmp = tmp * texture_color.a;
@@ -493,6 +528,7 @@ struct ShadowPayload {
 float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
   ShadowPayload sp;
   sp. attenuation = float3 (1.0, 1.0, 1.0);
+  sp. current_medium_id = - 1;
   RayDesc shadow;
   shadow.Origin = origin;
   shadow.Direction = dir;
@@ -530,6 +566,7 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
   // Load material (this will also update N with normal map if available)
   //Tackle volume scattering and emission before surface interaction
   if(payload.current_medium_id != -1) {
+    float3 ve_color = materials[payload.current_medium_id].volume_emission;
     float scatter_distance;
     float3 new_direction, volume_throughput;
     bool scattered = SampleVolumeScattering(payload.current_medium_id, RayTCurrent(), payload.seed, scatter_distance, new_direction, volume_throughput);
@@ -545,9 +582,10 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
       // 计算散射点处点光源和面光源的贡献
       float3 light_contribution = float3(0.0, 0.0, 0.0);
       
-      // 各向同性相位函数：p(ω) = 1/(4π)
-      // 对于各向同性散射，光在所有方向上均匀散射
-      float phase_function = IsotropicPhaseFunction();
+      // Henyey-Greenstein 相位函数 (g = 0.7, 前向散射)
+      // 对于前向散射，光主要沿原方向散射
+      float g = 0.7;
+      float3 incident_dir = normalize(WorldRayDirection());
       
       // Point lights contribution
       for (uint i = 0; i < misc.num_point_lights; i++) {
@@ -556,14 +594,17 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
         if (dis < 1e-4) continue;
         lightDir /= dis;
         
+        // 计算入射方向与散射到光源方向之间的夹角余弦
+        float cosTheta = dot(incident_dir, lightDir);
+        
+        // 使用 Henyey-Greenstein 相位函数计算该方向的散射概率
+        float phase_function = HenyeyGreensteinPhaseFunction(g, cosTheta);
+        
         // 计算阴影光线的衰减
         float3 at = CalcLightAttenuation(scatter_point + 1e-4 * lightDir, lightDir, dis - 1e-4);
         
         // 体积散射方程：L_scatter = phase_function × L_light × attenuation / distance²
-        // 概率密度：
-        //   - 空间采样概率：1 (确定性光源位置)
-        //   - 方向采样概率 = phase_function = 1/(4π)
-        // 由于我们对光源进行确定性采样（非随机采样），贡献直接累加，不需要除以采样概率
+        // phase_function 现在是根据实际散射方向计算的 HG 相位函数值
         light_contribution += phase_function * at * point_lights[i].color / sqr(dis);
       }
       
@@ -587,6 +628,12 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
         if (dis < 1e-4) continue;
         lightDir /= dis;
         
+        // 计算入射方向与散射到光源方向之间的夹角余弦
+        float cosTheta = dot(incident_dir, lightDir);
+        
+        // 使用 Henyey-Greenstein 相位函数计算该方向的散射概率
+        float phase_function = HenyeyGreensteinPhaseFunction(g, cosTheta);
+        
         // 计算光源表面法线与光线方向的夹角余弦
         float Ni_D = abs(dot(Ni, -lightDir));
         if (Ni_D <= 0.0f) continue;
@@ -595,11 +642,7 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
         float3 at = CalcLightAttenuation(scatter_point + 1e-4 * lightDir, lightDir, dis - 2e-4);
         
         // 面光源的辐射度方程：L_scatter = phase_function × emission × Ni_D × area × attenuation / distance²
-        // 概率密度：
-        //   - 空间采样概率密度 = 1/area (在三角形上均匀采样)
-        //   - 方向采样概率密度 = phase_function = 1/(4π)
-        // 蒙特卡洛估计器：L = phase_function × emission × Ni_D × area / distance² × attenuation
-        // 其中 area 项抵消了采样概率密度 1/area
+        // phase_function 现在是根据实际散射方向计算的 HG 相位函数值
         light_contribution += phase_function * at * materials[mat_id].emission * Ni_D * area / sqr(dis);
       }
       
@@ -628,6 +671,11 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
   Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2, medium_id);
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
   float3 T, B;
+  if(payload. current_medium_id == medium_id) {
+    payload.current_medium_id = -1;
+  } else {
+    payload.current_medium_id = medium_id;
+  }
   getOrthonormalBasis(N, T, B);
   if (Rand(payload. seed) < p) {
     payload. bounce = 0;
@@ -728,9 +776,5 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
     payload. bounce = 1;
     payload. nxt_origin = hitpos + 1e-4 * WorldRayDirection();
   }
-  if(payload. current_medium_id == medium_id) {
-    payload.current_medium_id = -1;
-  } else {
-    payload.current_medium_id = medium_id;
-  }
+  
 }

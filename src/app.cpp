@@ -23,7 +23,7 @@ namespace {
 #include "built_in_shaders.inl"
 }
 const int MAX_TEXTURE_COUNT = 256;
-const float fov = 70.0f;
+const float fov = 90.0f;
 Application::Application(grassland::graphics::BackendAPI api) {
     grassland::graphics::CreateCore(api, grassland::graphics::Core::Settings{}, &core_);
     core_->InitializeLogicalDeviceAutoSelect(true);
@@ -191,7 +191,7 @@ void Application::OnMouseButton(int button, int action, int mods, double xpos, d
 
 void Application::OnInit() {
     alive_ = true;
-    core_->CreateWindowObject(1920, 1060,
+    core_->CreateWindowObject(1280, 720,
         ((core_->API() == grassland::graphics::BACKEND_API_VULKAN) ? "[Vulkan]" : "[D3D12]") +
         std::string(" Ray Tracing Scene Demo"),
         &window_);
@@ -228,17 +228,22 @@ void Application::OnInit() {
 
     // Add entities to the scene
     // Ground plane - a cube scaled to be flat
-    // {
-    //     auto ground = std::make_shared<Entity>(
-    //         "meshes/cube.obj",
-    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.5f, 0.3f, 0.2f), 1.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), 
-    //                   glm::vec3(10.0f, 0.05f, 10.0f))
-    //     );
-    //     scene_->AddEntity(ground);
-    // }
+    {
+        auto ground = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.5f, 0.3f, 0.2f), 1.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), 
+                      glm::vec3(10.0f, 0.05f, 10.0f))
+        );
+        scene_->AddEntity(ground);
+    }
 
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (.25f, 0.4f, -.15f), glm :: vec3 (.3f, .2f, .1f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, 0.15f), glm :: vec3 (.01f, .01f, .01f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, 0.05f), glm :: vec3 (.01f, .01f, .01f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, -0.05f), glm :: vec3 (.01f, .01f, .01f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, -0.15f), glm :: vec3 (.01f, .01f, .01f)));
+    //scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 1.0f, 0.00f), glm :: vec3 (10.0f, 10.0f, 10.0f)));
 
     // Red sphere (using octahedron as sphere substitute)
     // {
@@ -280,21 +285,21 @@ void Application::OnInit() {
     //         scene_->AddEntity(cube);
     //     }
 
-    {
-        // auto white_cube = std::make_shared<Entity>(
-        //     "meshes/cube.obj",
-        //     Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
-        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)), 
-        //               glm::vec3(10.0f, 0.1f, 10.0f))
-        // );
-        // scene_->AddEntity(white_cube);
-    }
+    // {
+    //     auto white_cube = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.5f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), 5.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, -0.08f)), 
+    //                   glm::vec3(0.2f, 0.2f, 0.2f))
+    //     );
+    //     scene_->AddEntity(white_cube);
+    // }
 
     // {
     //     auto Qilin = std::make_shared<Entity>(
     //         "meshes/MeshResources/Qilin/qilin.obj",
     //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(0.001f, 0.001f, 0.001f)) // adjust offset as needed
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(0.01f, 0.01f, 0.01f)) // adjust offset as needed
     //     );
     //     scene_->AddEntity(Qilin);
     // }
@@ -310,21 +315,39 @@ void Application::OnInit() {
     
     {
         auto MC = std::make_shared<Entity>(
-            "meshes/MeshResources/Minecraft/cave.obj",
+            "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
+            // "meshes/MeshResources/Minecraft/glass.obj",
             Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
             glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
         );
         scene_ -> AddEntity(MC);
     }
-    {
-        auto small_cube = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.5f, 0.3f, 0.1f), 0.0f, 0.0f, glm::vec3(120.0f, 50.0f, 20.0f)),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.25f, 0.37f, -0.15f)), 
-                      glm::vec3(0.0075f, 0.0075f, 0.0075f))
-        );
-        scene_->AddEntity(small_cube);
-    }
+
+    // {
+    //     auto shoe = std::make_shared<Entity>(
+    //         "meshes/MeshResources/nb574/nb574.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(
+    //             glm::rotate(
+    //                 glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
+    //                 glm::radians(-90.0f),  // rotation angle in degrees
+    //                 glm::vec3(1.0f, 0.0f, 0.0f)  // rotation axis (Y-axis)
+    //             ),
+    //             glm::vec3(1.0f, 1.0f, 1.0f)
+    //         )
+    //     );
+    //     scene_ -> AddEntity(shoe);
+    // }
+
+    // {
+    //     auto small_cube = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.5f, 0.3f, 0.1f), 0.0f, 0.0f, glm::vec3(90.0f, 90.0f, 90.0f)),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.05f, 1.5f, 0.15f)), 
+    //                   glm::vec3(0.04f, 0.04f, 0.04f))
+    //     );
+    //     scene_->AddEntity(small_cube);
+    // }
 
     // {
     //     auto MC = std::make_shared<Entity>(
@@ -368,13 +391,13 @@ void Application::OnInit() {
     hover_info_buffer_->UploadData(&initial_hover, sizeof(HoverInfo));
 
     // Initialize camera state member variables
-    camera_pos_ = glm::vec3{ 0.0f, 1.0f, 5.0f };
-    camera_up_ = glm::vec3{ 0.0f, 1.0f, 0.0f }; // World up
+    camera_pos_ = glm::vec3{ 0.05f, 0.85f, -0.2f };
+    camera_up_ = glm::normalize(glm::vec3{ 0.0f, 1.0f, 0.0f }); // World up
     camera_speed_ = 0.01f;
 
     // Initialize new mouse/view variables
-    yaw_ = -90.0f; // Point down -Z
-    pitch_ = 0.0f;
+    yaw_ = 90.0f; // Point down -Z
+    pitch_ = 20.0f;
     last_x_ = (float)window_->GetWidth() / 2.0f;
     last_y_ = (float)window_->GetHeight() / 2.0f;
     mouse_sensitivity_ = 0.1f;
@@ -394,7 +417,6 @@ void Application::OnInit() {
     camera_object.camera_to_world =
         glm::inverse(glm::lookAt(camera_pos_, camera_pos_ + camera_front_, camera_up_));
     camera_object.aperture_size = aperture_size_;
-    std::cerr<<aperture_size_<<std::endl;
     camera_object.focal_distance = focal_distance_;
     camera_object_buffer_->UploadData(&camera_object, sizeof(CameraObject));
 
@@ -475,7 +497,7 @@ void Application::OnInit() {
         grassland::LogInfo("HDR skybox loaded: {}x{}", width, height);
     } else {
         grassland::LogWarning("Failed to load HDR skybox, using dummy image");
-        float fallback[4] = {0.2f, 0.6f, 1.0f, 1.0f}; // 天空蓝色
+        float fallback[4] = {0.1f, 0.3f, 0.5f, 1.0f}; // 天空蓝色
         core_->CreateImage(1, 1, 
                             grassland::graphics::IMAGE_FORMAT_R32G32B32A32_SFLOAT,
                             &hdr_skybox_);
