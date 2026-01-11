@@ -231,11 +231,34 @@ void Application::OnInit() {
     {
         auto ground = std::make_shared<Entity>(
             "meshes/cube.obj",
-            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.5f, 0.3f, 0.2f), 1.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), 
+            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)), 
                       glm::vec3(10.0f, 0.05f, 10.0f))
         );
         scene_->AddEntity(ground);
+        auto glass = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 1.0f, 0.05f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, 0.0f)), 
+                      glm::vec3(1.0f, 0.5f, 1.0f))
+        );
+        scene_->AddEntity(glass);
+        auto glow = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(5.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 2.0f)), 
+                      glm::vec3(0.1f, 5.0f, 0.1f))
+        );
+        scene_->AddEntity(glow);
+    }
+    {       
+        auto glass = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 0.0f, 0.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.5f, 0.0f)), 
+                      glm::vec3(1.0f, 0.5f, 1.0f))
+        );
+        scene_->AddEntity(glass);
     }
 
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (.25f, 0.4f, -.15f), glm :: vec3 (.3f, .2f, .1f)));
@@ -313,15 +336,15 @@ void Application::OnInit() {
     //     scene_->AddEntity(RockSet);
     // }
     
-    {
-        auto MC = std::make_shared<Entity>(
-            "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
-            // "meshes/MeshResources/Minecraft/glass.obj",
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
-        );
-        scene_ -> AddEntity(MC);
-    }
+    // {
+    //     auto MC = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
+    //         // "meshes/MeshResources/Minecraft/glass.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
+    //     );
+    //     scene_ -> AddEntity(MC);
+    // }
 
     // {
     //     auto shoe = std::make_shared<Entity>(

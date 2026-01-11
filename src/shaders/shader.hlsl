@@ -15,6 +15,9 @@ struct Material {
   float3 emission;
   float3 transmission;
   float alpha;
+  float ior;
+  float clearcoat;
+  float clearcoat_roughness;
   float3 volume_emission;
   float volume_density;
   float3 volume_scatter;
@@ -193,41 +196,10 @@ void Calculate(inout RayPayload payload) {
     payload.hit = false;
     payload.instance_id = 0xFFFFFFFF;
   }
-  payload.color += payload. coef * SampleSkybox(WorldRayDirection()) * float3(0.1f, 0.1f, 0.1f);
+  payload.color += payload. coef * SampleSkybox(WorldRayDirection());
   payload. bounce = 0;
 }
 
-
-static float p = 0.1;
-
-
-float sqr(float x) { return x * x; }
-float3 calcF0(Material mat) {
-  return lerp(float3 (0.04, 0.04, 0.04), mat. base_color, mat. metallic);
-}
-float3 FresnelSchlick(float3 F0, float3 V_N) {
-  return F0 + (float3 (1.0, 1.0, 1.0) - F0) * pow(clamp(1 - V_N, 0.0, 1.0), 5);
-}
-float calcD(float alpha, float n_h) {
-  return sqr(alpha) / (PI * sqr(sqr(n_h) * sqr(alpha) + (1 - sqr(n_h))));
-}
-float3 BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n, out float3 fs, out float3 fd) {
-  float3 h = normalize(oi + oo);
-  float n_oi = dot(n, oi), n_oo = dot(n, oo), n_h = dot(n, h);
-  if (n_oi <= 0.0f || n_oo <= 0.0f) return fs = fd = float3 (0.0, 0.0, 0.0);
-  float3 F0 = calcF0(mat);
-  float3 F = FresnelSchlick(F0, dot(oo, h));
-  float alpha = sqr(mat. roughness);
-  float D = calcD(alpha, n_h);
-  float k = sqr(alpha + 1) / 8;
-  float G = n_oi / lerp(n_oi, 1.0, k) * n_oo / lerp(n_oo, 1.0, k);
-  fs = F * D * G / (4 * n_oi * n_oo + 1e-7);
-  fd = (1 - mat. metallic) / PI * mat. base_color * (1 - F);
-  return fs + fd;
-}
-float luminance(float3 c) {
-  return 0.2126 * c. r + 0.7152 * c. g + 0.0722 * c. b;
-}
 
 // Henyey-Greenstein phase function for volume scattering
 // g: asymmetry parameter [-1, 1]
@@ -431,7 +403,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
     float4 texture_color = textures[mat.texture_index].SampleLevel(g_Sampler, uv, 0);
     mat.base_color = texture_color.rgb;
     mat.alpha = texture_color.a;
-    mat. alpha = 1;
+    // mat. alpha = 1;
 
     // float3 tmp = float3(1.0, 1.0, 1.0)-mat.transmission;
     // tmp = tmp * texture_color.a;
@@ -479,10 +451,67 @@ void getOrthonormalBasis(float3 n, out float3 t, out float3 b) {
   b = normalize(float3 (d, 1.0 - n.y * n.y * a, -n.y));
 }
 
+static float p = 0.1;
+
+
+float sqr(float x) { return x * x; }
+float3 calcF0(Material mat) {
+  float F0 = sqr((mat. ior - 1) / (mat. ior + 1));
+  return lerp(float3 (F0, F0, F0), mat. base_color, mat. metallic);
+}
+float3 FresnelSchlick(float3 F0, float3 V_N) {
+  return F0 + (float3 (1.0, 1.0, 1.0) - F0) * pow(clamp(1 - V_N, 0.0, 1.0), 5);
+}
+float3 calcF_base(in Material mat, in float costheta) {
+  return FresnelSchlick(calcF0(mat), costheta);
+}
+float3 calcF_coat(in float costheta) {
+  return FresnelSchlick(float3 (0.04f, 0.04f, 0.04f), costheta);
+}
+float calcD_base(float alpha, float n_h) {
+  return sqr(alpha) / (PI * sqr(sqr(n_h) * sqr(alpha) + (1 - sqr(n_h))));
+}
+float calcD_coat(float alpha, float n_h) {
+  return 1 - alpha < 1e-3 ? 1 / PI : (sqr(alpha) - 1) / (PI * 2 * log(alpha) * (sqr(n_h) * sqr(alpha) + (1 - sqr(n_h))));
+}
+void BRDF(in Material mat, in float3 oi, in float3 oo, in float3 n, in float3 pn, out float3 fs, out float3 fd, out float3 fc) {
+  float3 h = normalize(oi + oo);
+  float n_oi = dot(n, oi), n_oo = dot(n, oo), n_h = dot(n, h);
+  if (n_oi <= 0.0f || n_oo <= 0.0f) {
+    fs = fd = float3 (0.0, 0.0, 0.0);
+  } else {
+    float3 F = calcF_base(mat, dot(oo, h));
+    float alpha = sqr(mat. roughness);
+    float D = calcD_base(alpha, n_h);
+    float k = sqr(alpha + 1) / 8;
+    float G = n_oi / lerp(n_oi, 1.0, k) * n_oo / lerp(n_oo, 1.0, k);
+    fs = F * D * G / (4 * n_oi * n_oo + 1e-7);
+    fd = (1 - mat. metallic) / PI * mat. base_color * (1 - F) * (1 - mat. transmission);
+  }
+  if (mat. clearcoat != 0) {
+    float3 h = normalize(oi + oo);
+    float n_oi = dot(pn, oi), n_oo = dot(pn, oo), n_h = dot(pn, h);
+    if (n_oi <= 0.0f || n_oo <= 0.0f) {
+      fc = float3 (0.0, 0.0, 0.0);
+    } else {
+      float3 F = calcF_coat(dot(oo, h));
+      float alpha = sqr(mat. clearcoat_roughness);
+      float D = calcD_coat(alpha, n_h);
+      float G = 2 * n_oi / (n_oi + sqrt(lerp(sqr(n_oi), 1.0, 0.0625))) * 2 * n_oo / (n_oo + sqrt(lerp(sqr(n_oo), 1.0, 0.0625)));
+      fc = mat. clearcoat * F * D * G / (4 * n_oi * n_oo + 1e-7);
+    }
+    float att = (1 - mat. clearcoat * calcF_coat(clamp(n_oi, 0.0, 1.0)). r) * (1 - mat. clearcoat * calcF_coat(clamp(n_oo, 0.0, 1.0)). r);
+    fs *= att, fd *= att;
+  } else fc = 0;
+}
+float luminance(float3 c) {
+  return 0.2126 * c. r + 0.7152 * c. g + 0.0722 * c. b;
+}
+
 #define assert(cond) if (!(cond)) { while (1); }
 
 enum rayComponent {
-  SPECULAR, DIFFUSE, TRANSMISSIVE
+  CLEARCOAT, SPECULAR, DIFFUSE, TRANSMISSIVE
 } ;
 
 struct ShadowPayload { 
@@ -501,6 +530,7 @@ struct ShadowPayload {
   float3 p2 = vertices[vid.z];
   float3 N = normalize(cross(p1 - p0, p2 - p0));
   if (dot(WorldRayDirection(), N) > 0.0) N = - N;
+  float3 planeN = N;
   if(payload.current_medium_id != -1) {
     float3 volume_emission, volume_transmittance;
     SampleVolumeContribution(payload.current_medium_id, RayTCurrent() - payload.pre_t, volume_emission, volume_transmittance);
@@ -510,8 +540,9 @@ struct ShadowPayload {
   int medium_id;
   Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2, medium_id);
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
-  float3 F = FresnelSchlick(calcF0(mat), dot(N, - WorldRayDirection()));
-  float3 surface_transmittance = (1 - mat. alpha) * float3 (1.0, 1.0, 1.0) + mat. alpha * (1 - mat. metallic) * mat. transmission * (1 - F);
+  float3 F = calcF_base(mat, dot(N, - WorldRayDirection()));
+  float Fcc = calcF_coat(dot(planeN, - WorldRayDirection())). r;
+  float3 surface_transmittance = (1 - mat. alpha) * float3 (1.0, 1.0, 1.0) + mat. alpha * (1 - mat. metallic) * mat. transmission * (1 - F) * sqr(1 - mat. clearcoat * Fcc);
   payload. attenuation *= surface_transmittance;
   if(payload.current_medium_id == medium_id) {
     payload.current_medium_id = -1;
@@ -554,9 +585,10 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
   float3 p1 = vertices[vid.y];
   float3 p2 = vertices[vid.z];
   float3 N = normalize(cross(p1 - p0, p2 - p0));
+  bool flip = 0;
   // N = normalize(mul((float3x3) ObjectToWorld3x4(), N));
   if (dot(WorldRayDirection(), N) > 0.0)
-    N = - N;
+    N = - N, flip = 1;
   float3 planeN = N;
   // float3 B = normalize(p1 - p0);
   // if (abs(dot(N, B)) > 1e-6)
@@ -670,13 +702,17 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
   int medium_id;
   Material mat = getMaterial(instance_id, primitive_id, attr, N, p0, p1, p2, medium_id);
   mat. roughness = clamp(mat. roughness, 1e-2, 1.0);
+  mat. clearcoat_roughness = clamp(mat. clearcoat_roughness, 1e-2, 1.0);
+  if (! flip) mat. ior = 1 / mat. ior;
   float3 T, B;
+  getOrthonormalBasis(N, T, B);
+  float3 planeT, planeB;
+  getOrthonormalBasis(planeN, planeT, planeB);
   if(payload. current_medium_id == medium_id) {
     payload.current_medium_id = -1;
   } else {
     payload.current_medium_id = medium_id;
   }
-  getOrthonormalBasis(N, T, B);
   if (Rand(payload. seed) < p) {
     payload. bounce = 0;
     return ;
@@ -686,55 +722,77 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
     payload. bounce = 1;
     return ;
   }
-  if (payload. count_emission) payload. color += payload. coef * mat. emission;
-  float3x3 M = transpose(float3x3 (T, B, N));
+  float3x3 M = transpose(float3x3 (T, B, N)), planeM = transpose(float3x3 (planeT, planeB, planeN));
   // Sample a direction
-  // float phi = Rand(payload. seed) * 2 * PI, cosTheta = Rand(payload. seed), sinTheta = sqrt(1 - sqr(cosTheta));
-  // float3 inDir = sinTheta * (cos(phi) * T + sin(phi) * B) + cosTheta * N;
-  // float3 outDir = - WorldRayDirection();
-  // float P = 1 / (2 * PI);
   float3 outDir = - WorldRayDirection(), inDir;
-  float3 F = FresnelSchlick(calcF0(mat), dot(N, outDir));
+  float3 F = calcF_base(mat, dot(N, outDir));
+  float Fcc = calcF_coat(dot(planeN, outDir)). r;
+  if (payload. count_emission) payload. color += payload. coef * (1 - mat. clearcoat * Fcc) * mat. emission;
+  float p_coat = clamp(mat. clearcoat * Fcc * 0.5, 0.01, 0.95);
   float p_mix = clamp(luminance(F) + (1 - mat. roughness) * 0.1, 0.05, 0.95);
-  float p_trans = clamp(luminance(mat. transmission), 0.05, 0.95); // 防止除以 0
-  rayComponent component; // 0: specular, 1 : diffuse, 2 : transmission
+  float p_trans = clamp(luminance(mat. transmission), 0.01, 0.95); // 防止除以 0
   float alpha = sqr(mat. roughness), alpha2 = sqr(alpha);
-  if (Rand(payload. seed) <= p_mix) {
+  float coat_alpha = sqr(mat. clearcoat_roughness), coat_alpha2 = sqr(coat_alpha);
+  rayComponent component;
+  if (Rand(payload. seed) <= p_coat) {
+    component = CLEARCOAT;
+    do {
+      float xi = Rand(payload. seed);
+      float cosTheta = 1 - coat_alpha2 < 1e-3 ? sqrt(xi) : sqrt((1 - pow(coat_alpha2, xi)) / (1 - coat_alpha2));
+      cosTheta = clamp(cosTheta, 0, 1);
+      float sinTheta = sqrt(1 - sqr(cosTheta)), phi = Rand(payload. seed) * 2 * PI;
+      float3 h = mul(planeM, float3 (sinTheta * cos(phi), sinTheta * sin(phi), cosTheta));
+      inDir = h * dot(outDir, h) * 2 - outDir;
+    } while (dot(planeN, inDir) < 0);
+  } else if (Rand(payload. seed) <= p_mix) {
     component = SPECULAR;
     do {
-      float phi = Rand(payload. seed) * 2 * PI, xi = Rand(payload. seed), cosTheta = sqrt(xi / ((1 - xi) * alpha2 + xi)), sinTheta = cosTheta >= 1.0 ? 0 : sqrt(1 - sqr(cosTheta));
+      float phi = Rand(payload. seed) * 2 * PI, xi = Rand(payload. seed), cosTheta = sqrt(xi / ((1 - xi) * alpha2 + xi));
+      cosTheta = clamp(cosTheta, 0, 1);
+      float sinTheta = sqrt(1 - sqr(cosTheta));
       float3 h = mul(M, float3 (sinTheta * cos(phi), sinTheta * sin(phi), cosTheta));
       inDir = h * dot(outDir, h) * 2 - outDir;
     } while (dot(N, inDir) < 0);
-  } else if (Rand(payload. seed) <= p_trans)
+  } else if (Rand(payload. seed) <= p_trans) {
     component = TRANSMISSIVE;
-  else {
+    inDir = refract(- outDir, N, mat. ior);
+  } else {
     component = DIFFUSE;
     float r = sqrt(Rand(payload. seed)), phi = Rand(payload. seed) * 2 * PI;
     inDir = mul(M, float3 (r * cos(phi), r * sin(phi), sqrt(1 - sqr(r))));
   }
   float P;
-  if (component != TRANSMISSIVE) {
+  if (component == DIFFUSE || component == SPECULAR) {
     float3 h = normalize(inDir + outDir);
     float n_h = dot(N, h);
-    float pd = dot(N, inDir) / PI, ps = calcD(alpha, n_h) * n_h / (4 * dot(outDir, h));
-    P = component ? (1 - p_mix) * (1 - p_trans) * pd : p_mix * ps;
-  } else P = (1 - p_mix) * p_trans;
+    float pd = dot(N, inDir) / PI, ps = calcD_base(alpha, n_h) * n_h / (4 * dot(outDir, h));
+    P = (component == DIFFUSE ? (1 - p_mix) * (1 - p_trans) * pd : p_mix * ps) * (1 - p_coat);
+  } else if (component == TRANSMISSIVE) {
+    P = (1 - p_coat) * (1 - p_mix) * p_trans;
+  } else {
+    float3 h = normalize(inDir + outDir);
+    float n_h = dot(planeN, h);
+    P = p_coat * calcD_coat(coat_alpha, n_h) * n_h / (4 * dot(outDir, h));
+  }
 
   float3 light_contribution = float3 (0.0, 0.0, 0.0);
+  bool NEE_for_specular = mat. roughness >= 0.1;
+  bool NEE_for_coat = mat. clearcoat_roughness >= 0.1;
   for (uint i=0; i<misc.num_point_lights; i++) {
     float3 lightDir = point_lights[i]. position - hitpos;
     float dis = length(lightDir);
     if (dis < 1e-4) continue;
     lightDir /= dis;
-    if (dot(N, lightDir) <= 0.0f) continue;
-    float3 at = CalcLightAttenuation(hitpos + 1e-4 * lightDir, lightDir, dis - 1e-4);
-    float3 fs, fd;
-    BRDF(mat, lightDir, outDir, N, fs, fd);
-    // payload. color = at;
-    // payload. bounce = 0;
-    // return ;
-    light_contribution += at * (fs + (1 - mat. transmission) * fd) * dot(N, lightDir) * point_lights[i]. color / sqr(dis);
+    float3 att = CalcLightAttenuation(hitpos + 1e-4 * lightDir, lightDir, dis - 1e-4);
+    float3 fs, fd, fc;
+    BRDF(mat, lightDir, outDir, N, planeN, fs, fd, fc);
+    if (dot(N, lightDir) > 0.0f) {
+      if (! NEE_for_specular) fs = 0;
+      light_contribution += att * (fs + fd) * dot(N, lightDir) * point_lights[i]. color / sqr(dis);
+    }
+    if (NEE_for_coat && dot(planeN, lightDir) > 0.0f && fc. r > 0) {
+      light_contribution += att * fc * dot(planeN, lightDir) * point_lights[i]. color / sqr(dis);
+    }
   }
   for (uint i=0; i<misc.num_emissive_tris; i++) {
     uint tri_id = emissive_tris[i]. x, mat_id = emissive_tris[i]. y;
@@ -751,20 +809,27 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
     float dis = length(lightDir);
     if (dis < 1e-4) continue;
     lightDir /= dis;
-    float N_D = dot(N, lightDir), Ni_D = abs(dot(Ni, lightDir));
-    if (N_D <= 0.0f) continue;
-    float3 at = CalcLightAttenuation(hitpos + 1e-4 * lightDir, lightDir, dis - 2e-4);
-    float3 fs, fd;
-    BRDF(mat, lightDir, outDir, N, fs, fd);
-    light_contribution += at * (fs + (1 - mat. transmission) * fd) * materials[mat_id]. emission * N_D * Ni_D / sqr(dis) * area;
+    float3 att = CalcLightAttenuation(hitpos + 1e-4 * lightDir, lightDir, dis - 2e-4);
+    float3 fs, fd, fc;
+    BRDF(mat, lightDir, outDir, N, planeN, fs, fd, fc);
+    float N_D = dot(N, lightDir), pN_D = dot(planeN, lightDir), Ni_D = abs(dot(Ni, lightDir));
+    att *= 1 - materials[mat_id]. clearcoat * calcF_coat(Ni_D);
+    if (N_D > 0.0f) {
+      if (! NEE_for_specular) fs = 0;
+      light_contribution += att * (fs + fd) * materials[mat_id]. emission * N_D * Ni_D / sqr(dis) * area;
+    }
+    if (NEE_for_coat && pN_D > 0.0f && fc. r > 0) {
+      light_contribution += att * fc * materials[mat_id]. emission * pN_D * Ni_D / sqr(dis) * area;
+    }
   }
   payload. color += payload. coef * light_contribution;
   if (component != TRANSMISSIVE) {
-    payload. count_emission = 0;
+    // 如果是 specular 且是光滑的，就当作 delta 分布，正着过去采样光源。
+    payload. count_emission = component == SPECULAR && ! NEE_for_specular || component == CLEARCOAT && ! NEE_for_coat;
     if (dot(planeN, inDir) > 0) {
-      float3 fs, fd;
-      BRDF(mat, inDir, outDir, N, fs, fd);
-      payload. coef *= (component == SPECULAR ? fs : fd * (1 - mat. transmission)) * dot(N, inDir) / P;
+      float3 fs, fd, fc;
+      BRDF(mat, inDir, outDir, N, planeN, fs, fd, fc);
+      payload. coef *= (component == CLEARCOAT ? fc : component == SPECULAR ? fs : fd) * dot(component == CLEARCOAT ? planeN : N, inDir) / P;
       payload. bounce = 1;
       payload. nxt_origin = hitpos + 1e-4 * inDir;
       payload. nxt_direction = inDir;
@@ -772,9 +837,16 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light) {
       payload. bounce = 0;
     }
   } else {
-    payload. coef *= (1 - mat. metallic) * mat. transmission * (1 - F) / P;
-    payload. bounce = 1;
-    payload. nxt_origin = hitpos + 1e-4 * WorldRayDirection();
+    if (length(inDir) < 1e-3) {
+      payload. bounce = 0;
+    } else {
+      inDir = normalize(inDir);
+      float3 F = FresnelSchlick(calcF0(mat), - dot(N, inDir));
+      payload. coef *= (1 - mat. clearcoat * Fcc) * (1 - mat. clearcoat * calcF_coat(dot(planeN, - inDir)). r) * (1 - mat. metallic) * mat. transmission * (1 - F) * sqr(mat. ior) / P;
+      payload. bounce = 1;
+      payload. nxt_origin = hitpos + 1e-4 * inDir;
+      payload. nxt_direction = inDir;
+    }
   }
   
 }
