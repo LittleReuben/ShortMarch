@@ -18,6 +18,9 @@ struct MaterialGPUData {
     float ior;
     float clearcoat;
     float clearcoat_roughness;
+    float sheen;
+    float sheen_tint;
+    float subsurface;
     glm::vec3 volume_emission;
     float volume_density;
     glm::vec3 volume_scatter;
@@ -44,6 +47,9 @@ struct Material {
     float ior;
     float clearcoat;
     float clearcoat_roughness;
+    float sheen;
+    float sheen_tint;
+    float subsurface;
 
     glm::vec3 volume_emission;
     float volume_density;
@@ -67,6 +73,9 @@ struct Material {
         , ior(1.0f)
         , clearcoat(0.0f)
         , clearcoat_roughness(0.0f)
+        , sheen(0.0f)
+        , sheen_tint(0.0f)
+        , subsurface(0.0f)
         , volume_emission(0.0f, 0.0f, 0.0f)
         , volume_density(0.0f)
         , volume_scatter(0.0f, 0.0f, 0.0f)
@@ -74,7 +83,7 @@ struct Material {
         , normal_path("") {}
 
     // Constructor with color (for manual material specification)
-    Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f), const glm::vec3& trans = glm::vec3(0.0f, 0.0f, 0.0f), float a = 1.0f, float eta = 1.0f, float ccintensity = 0.0f, float ccrough = 0.0f, const glm::vec3& v_emission = glm::vec3(0.0f, 0.0f, 0.0f), float v_density = 0.0f, const glm::vec3& v_scatter = glm::vec3(0.0f, 0.0f, 0.0f) )
+    Material(const glm::vec3& color, float rough = 0.5f, float metal = 0.0f, const glm::vec3& glow = glm::vec3(0.0f, 0.0f, 0.0f), const glm::vec3& trans = glm::vec3(0.0f, 0.0f, 0.0f), float a = 1.0f, float eta = 1.0f, float ccintensity = 0.0f, float ccrough = 0.0f, float shintensity = 0.0f, float shtint = 0.0f, float subintensity = 0.0f, const glm::vec3& v_emission = glm::vec3(0.0f, 0.0f, 0.0f), float v_density = 0.0f, const glm::vec3& v_scatter = glm::vec3(0.0f, 0.0f, 0.0f) )
         : base_color(color)
         , roughness(rough)
         , metallic(metal)
@@ -86,6 +95,9 @@ struct Material {
         , ior(eta)
         , clearcoat(ccintensity)
         , clearcoat_roughness(ccrough)
+        , sheen(shintensity)
+        , sheen_tint(shtint)
+        , subsurface(subintensity)
         , volume_emission(v_emission)
         , volume_density(v_density)
         , volume_scatter(v_scatter)
@@ -121,6 +133,9 @@ struct Material {
         gpu_data.ior = ior;
         gpu_data.clearcoat = clearcoat;
         gpu_data.clearcoat_roughness = clearcoat_roughness;
+        gpu_data.sheen = sheen;
+        gpu_data.sheen_tint = sheen_tint;
+        gpu_data.subsurface = subsurface;
         gpu_data.volume_emission = volume_emission;
         gpu_data.volume_density = volume_density;
         gpu_data.volume_scatter = volume_scatter;

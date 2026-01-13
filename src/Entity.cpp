@@ -10,6 +10,7 @@ Entity::Entity(const std::string& obj_file_path,
     , transform_(transform)
     , mesh_loaded_(false)
     , has_uv_coords_(false)
+    , has_normals_(false)
     , has_material_ids_(false)
     , material_offset_(0) {
     
@@ -38,6 +39,9 @@ bool Entity::LoadMesh(const std::string& obj_file_path) {
 
     // Check if the mesh has UV coordinates
     has_uv_coords_ = (mesh_.TexCoords() != nullptr);
+
+    // Check if the mesh has vertex normals
+    has_normals_ = (mesh_.Normals() != nullptr);
     
     // Check if the mesh has material IDs
     const int* mtlid = mesh_.MaterialIds();
@@ -77,6 +81,7 @@ bool Entity::LoadMesh(const std::string& obj_file_path) {
             mat.emission = glm::vec3(mat_data.emission[0], mat_data.emission[1], mat_data.emission[2]);
             mat.transmission = glm::vec3(mat_data.transmission[0], mat_data.transmission[1], mat_data.transmission[2]);
             mat.alpha = mat_data. transparency;
+            mat.ior = mat_data. IoR;
 
             
             

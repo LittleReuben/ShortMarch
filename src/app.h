@@ -90,6 +90,7 @@ private:
     void RenderInfoOverlay(); // Render the info overlay
     void ApplyHoverHighlight(grassland::graphics::Image* image); // Apply hover highlighting as post-process
     void SaveAccumulatedOutput(const std::string& filename); // Save accumulated output to PNG file
+    void UpdateVerticesBuffer(); // Rebuild vertices buffer with current entity transforms (for motion blur)
 
     float yaw_;
     float pitch_;
@@ -98,10 +99,14 @@ private:
     float aperture_size_ = 0.000;
     float focal_distance_ = 1.0;
     float mouse_sensitivity_;
+    float motion_blur_time_range_ = 0.05;
+    float current_time = 0.000;
+    int samples_per_time_ = 10;
     bool first_mouse_; // Prevents camera jump on first mouse input
     bool camera_enabled_; // Whether camera movement is enabled
     bool last_camera_enabled_; // Track camera state changes to reset accumulation
     bool ui_hidden_; // Whether UI panels are hidden (Tab key toggle)
+    bool motion_blur_enabled_ = 0;
     
     // Mouse hovering
     double mouse_x_;

@@ -3,6 +3,7 @@
 #include "Material.h"
 #include <vector>
 #include <unordered_map>
+#include <glm/gtc/matrix_transform.hpp>
 
 // Entity represents a mesh instance with materials and transform
 // Supports multiple materials from MTL files
@@ -22,6 +23,7 @@ public:
     grassland::graphics::Buffer* GetIndexBuffer() const { return index_buffer_.get(); }
     grassland::graphics::Buffer* GetUVBuffer() const { return uv_buffer_.get(); }
     grassland::graphics::Buffer* GetMaterialIDBuffer() const { return material_id_buffer_.get(); }
+    const auto* GetNormals() const { return mesh_.Normals(); }
     
     // Get material by name (from MTL)
     const Material* GetMaterial(const std::string& name) const;
@@ -51,6 +53,19 @@ public:
     void SetDefaultMaterial(const Material& material) { default_material_ = material; }
     void SetTransform(const glm::mat4& transform) { transform_ = transform; }
 
+    // Motion: per-entity velocities
+    void SetLinearVelocity(const glm::vec3& v) { linear_velocity_ = v; }
+    const glm::vec3& GetLinearVelocity() const { return linear_velocity_; }
+    
+    // Base transform (reference at t=0) and time-based transform
+    const glm::mat4& GetBaseTransform() const { return transform_; }  // Use current transform as base
+    
+    // Compute transform at time t: current position + linear_velocity * t
+    glm::mat4 TransformAtTime(float t) const {
+        glm::vec3 pos_offset = linear_velocity_ * t;
+        return glm::translate(transform_, pos_offset);
+    }
+
     // Create BLAS for this entity's mesh
     void BuildBLAS(grassland::graphics::Core* core);
 
@@ -59,6 +74,9 @@ public:
     
     // Check if mesh has UV coordinates
     bool HasUVCoordinates() const { return has_uv_coords_; }
+
+    // Check if mesh has vertex normals
+    bool HasNormals() const { return has_normals_; }
     
     // Check if has MTL materials
     bool HasMTLMaterials() const { return !materials_.empty(); }
@@ -95,8 +113,12 @@ private:
 
     bool mesh_loaded_;
     bool has_uv_coords_;
+    bool has_normals_;
     bool has_material_ids_;
     
     int material_offset_;  // Offset for global material indexing
+
+    // Motion state
+    glm::vec3 linear_velocity_{0.0f};   // units per second in world or local space
 };
 

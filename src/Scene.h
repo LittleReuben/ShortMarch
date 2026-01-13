@@ -13,10 +13,12 @@ struct InstanceMetadata {
     int material_id_offset;     // Offset in global material ID buffer (or direct material index if no IDs)
     int has_uv;                 // Boolean flag (0 or 1)
     int has_material_ids;       // Boolean flag (0 or 1)
-    int vertex_count;           // Number of vertices (0 if no UV)
+    int vertex_count;           // Number of vertices for this instance
     int triangle_count;         // Number of triangles (0 if no material IDs)
     int index_offset;           // Offset in global index buffer
-    int padding[1];             // Align to 32 bytes for GPU (reduced from 2 to 1)
+    int normal_offset;          // Offset in global normal buffer (-1 if no normals)
+    int has_normals;            // Boolean flag (0 or 1)
+    int padding[3];             // Align to 48 bytes for GPU
 };
 
 struct PointLight {
@@ -46,6 +48,9 @@ public:
 
     // Update TLAS instances (e.g., for animation)
     void UpdateInstances();
+    
+    // Update instances with time-based motion: compute new transforms from velocity and time, then update TLAS
+    void UpdateInstanceAtTime(float time_seconds);
 
     // Get the TLAS for rendering
     grassland::graphics::AccelerationStructure* GetTLAS() const { return tlas_.get(); }
@@ -58,6 +63,9 @@ public:
     
     // Get global material ID buffer
     grassland::graphics::Buffer* GetGlobalMaterialIDBuffer() const { return global_material_id_buffer_.get(); }
+
+    // Get global normal buffer
+    grassland::graphics::Buffer* GetGlobalNormalBuffer() const { return global_normal_buffer_.get(); }
     
     // Get instance metadata buffer
     grassland::graphics::Buffer* GetInstanceMetadataBuffer() const { return instance_metadata_buffer_.get(); }
@@ -88,6 +96,7 @@ private:
     void AssignTextureIndices();  // Assign texture indices to materials
     void AssignMaterialOffsets();  // Assign global material offset to each entity
     void ConstructUVBuffer();
+    void ConstructNormalBuffer();
     void ConstructMaterialIDBuffer();
     void ConstructIndexBuffer();  // Build global index buffer
     void ConstructInstanceMetadataBuffer();  // Build instance metadata buffer
@@ -100,6 +109,7 @@ private:
     
     // Global buffers for all entities combined (only actual data, no padding)
     std::unique_ptr<grassland::graphics::Buffer> global_uv_buffer_;
+    std::unique_ptr<grassland::graphics::Buffer> global_normal_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> global_material_id_buffer_;
     std::unique_ptr<grassland::graphics::Buffer> global_index_buffer_;  // Global index buffer
     std::unique_ptr<grassland::graphics::Buffer> instance_metadata_buffer_;  // Per-instance metadata

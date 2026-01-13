@@ -2,6 +2,7 @@
 
 // Include stb_image for texture loading
 #include "stb_image.h"
+#include <glm/gtc/matrix_inverse.hpp>
 
 Scene::Scene(grassland::graphics::Core* core)
     : core_(core) {
@@ -77,6 +78,7 @@ void Scene::BuildAccelerationStructures() {
 
     // Build global UV and material ID buffers
     ConstructUVBuffer();
+    ConstructNormalBuffer();
     ConstructMaterialIDBuffer();
     ConstructIndexBuffer();
     
@@ -117,6 +119,45 @@ void Scene::UpdateInstances() {
     tlas_->UpdateInstances(instances);
 }
 
+void Scene::UpdateInstanceAtTime(float time_seconds) {
+    if (!tlas_ || entities_.empty()) {
+        return;
+    }
+
+    // Compute new transforms for all entities based on their velocity and time
+    // then update the TLAS instances accordingly
+    std::vector<grassland::graphics::RayTracingInstance> instances;
+    instances.reserve(entities_.size());
+
+    for (size_t i = 0; i < entities_.size(); ++i) {
+        auto& entity = entities_[i];
+        if (entity->GetBLAS()) {
+            // Compute transform at given time: T(t) = base_transform + velocity * t
+            glm::mat4 transform_at_time = entity->TransformAtTime(time_seconds);
+            
+            // Update entity's current transform
+            entity->SetTransform(transform_at_time);
+            
+            // Create TLAS instance with updated transform
+            glm::mat4x3 transform_3x4 = glm::mat4x3(transform_at_time);
+            
+            auto instance = entity->GetBLAS()->MakeInstance(
+                transform_3x4,
+                static_cast<uint32_t>(i),
+                0xFF,
+                0,
+                grassland::graphics::RAYTRACING_INSTANCE_FLAG_NONE
+            );
+            instances.push_back(instance);
+        }
+    }
+
+    // Update TLAS with new instances
+    tlas_->UpdateInstances(instances);
+    
+    grassland::LogInfo("Updated instances at time {} seconds", time_seconds);
+}
+
 void Scene::AssignMaterialOffsets() {
     int global_material_offset = 0;
     
@@ -152,6 +193,9 @@ void Scene::UpdateMaterialsBuffer() {
             }
         } else {
             // Add default material
+            if(entity->GetDefaultMaterial().volume_density > 0){
+                grassland::LogInfo("Found Volumetric material with material ID {}", materials.size());
+            }
             materials.push_back(entity->GetDefaultMaterial().ToGPUData());
         }
     }
@@ -340,6 +384,51 @@ void Scene::ConstructUVBuffer(){
     }
 }
 
+void Scene::ConstructNormalBuffer(){
+    if(entities_.empty()){
+        return;
+    }
+
+    std::vector<glm::vec3> global_normals;
+
+    size_t total_vertices = 0;
+    for(const auto& entity : entities_){
+        if(entity->HasNormals()){
+            total_vertices += entity->GetNumVertices();
+        }
+    }
+
+    global_normals.reserve(total_vertices);
+
+    for(const auto& entity : entities_){
+        if(!entity->HasNormals()){
+            continue;
+        }
+
+        const auto* normal_data = entity->GetNormals();
+        size_t count = entity->GetNumVertices();
+
+        glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(entity->GetTransform())));
+
+        for(size_t i = 0; i < count; i++) {
+            glm::vec3 n(normal_data[i][0], normal_data[i][1], normal_data[i][2]);
+            glm::vec3 world_n = glm::normalize(normal_matrix * n);
+            global_normals.push_back(world_n);
+        }
+    }
+
+    if(!global_normals.empty()){
+        size_t buffer_size = global_normals.size() * sizeof(glm::vec3);
+        core_->CreateBuffer(buffer_size,
+                           grassland::graphics::BUFFER_TYPE_DYNAMIC,
+                           &global_normal_buffer_);
+        global_normal_buffer_->UploadData(global_normals.data(), buffer_size);
+
+        grassland::LogInfo("Created global normal buffer with {} vertex normals (no padding)",
+                          global_normals.size());
+    }
+}
+
 void Scene::ConstructMaterialIDBuffer(){
     if(entities_.empty()){
         return;
@@ -439,21 +528,21 @@ void Scene::ConstructInstanceMetadataBuffer(){
     int uv_offset = 0;
     int mat_id_offset = 0;
     int index_offset = 0;  // Track index buffer offset
+    int normal_offset = 0;
     
     for(const auto& entity : entities_){
-        InstanceMetadata metadata;
-        metadata.padding[0] = 0;
+        InstanceMetadata metadata{};
+        metadata.padding[0] = metadata.padding[1] = metadata.padding[2] = 0;
+        metadata.vertex_count = static_cast<int>(entity->GetNumVertices());
         
         // UV information
         if(entity->HasUVCoordinates()){
             metadata.uv_offset = uv_offset;
             metadata.has_uv = 1;
-            metadata.vertex_count = static_cast<int>(entity->GetNumVertices());
             uv_offset += metadata.vertex_count;
         } else {
             metadata.uv_offset = -1;  // Mark as no UV
             metadata.has_uv = 0;
-            metadata.vertex_count = 0;
         }
         
         // Material ID information
@@ -472,6 +561,16 @@ void Scene::ConstructInstanceMetadataBuffer(){
         // Index buffer offset
         metadata.index_offset = index_offset;
         index_offset += static_cast<int>(entity->GetNumIndices());
+
+        // Normal information
+        if(entity->HasNormals()){
+            metadata.normal_offset = normal_offset;
+            metadata.has_normals = 1;
+            normal_offset += metadata.vertex_count;
+        } else {
+            metadata.normal_offset = -1;
+            metadata.has_normals = 0;
+        }
         
         instance_metadata_.push_back(metadata);
     }

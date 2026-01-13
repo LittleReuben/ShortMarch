@@ -3,7 +3,6 @@
 #include "Entity.h"
 #include "Scene.h"
 #include "Film.h"
-
 #include "glm/gtc/matrix_transform.hpp"
 #include "imgui.h"
 
@@ -18,12 +17,20 @@
 #include <iomanip>
 #include <sstream>
 #include <filesystem>
+#include <random>
 
 namespace {
 #include "built_in_shaders.inl"
 }
 const int MAX_TEXTURE_COUNT = 256;
 const float fov = 90.0f;
+
+// Simple random float in [0, 1)
+static float RandomFloat() {
+    static std::mt19937 gen(std::random_device{}());
+    static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    return dis(gen);
+}
 Application::Application(grassland::graphics::BackendAPI api) {
     grassland::graphics::CreateCore(api, grassland::graphics::Core::Settings{}, &core_);
     core_->InitializeLogicalDeviceAutoSelect(true);
@@ -228,37 +235,81 @@ void Application::OnInit() {
 
     // Add entities to the scene
     // Ground plane - a cube scaled to be flat
+    // {
+    //     auto ground = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)), 
+    //                   glm::vec3(10.0f, 0.05f, 10.0f))
+    //     );
+    //     scene_->AddEntity(ground);
+    //     auto glass = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 1.0f, 0.05f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, 0.0f)), 
+    //                   glm::vec3(1.0f, 0.5f, 1.0f))
+    //     );
+    //     scene_->AddEntity(glass);
+    //     auto glow = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(5.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 2.0f)), 
+    //                   glm::vec3(0.1f, 5.0f, 0.1f))
+    //     );
+    //     scene_->AddEntity(glow);
+    // }
+    // {       
+    //     auto glass = std::make_shared<Entity>(
+    //         "meshes/cube.obj",
+    //         Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 0.0f, 0.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.5f, 0.0f)), 
+    //                   glm::vec3(1.0f, 0.5f, 1.0f))
+    //     );
+    //     scene_->AddEntity(glass);
+    // }
+
     {
-        auto ground = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)), 
-                      glm::vec3(10.0f, 0.05f, 10.0f))
-        );
-        scene_->AddEntity(ground);
-        auto glass = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 1.0f, 0.05f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, 0.0f)), 
-                      glm::vec3(1.0f, 0.5f, 1.0f))
-        );
-        scene_->AddEntity(glass);
-        auto glow = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(5.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 2.0f)), 
-                      glm::vec3(0.1f, 5.0f, 0.1f))
-        );
-        scene_->AddEntity(glow);
-    }
-    {       
-        auto glass = std::make_shared<Entity>(
-            "meshes/cube.obj",
-            Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 0.0f, 0.0f),
-            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.5f, 0.0f)), 
-                      glm::vec3(1.0f, 0.5f, 1.0f))
-        );
-        scene_->AddEntity(glass);
+        // auto light = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm :: vec3(15.0f, 15.0f, 15.0f)),
+        //     glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 2.0f, 5.0f))
+        // );
+        // scene_->AddEntity(light);
+        // scene_ -> AddPointLight(PointLight (glm :: vec3 (-1.0f, 1.0f, 0.0f), glm :: vec3 (1.0f, 2.0f, 3.0f)));
+        // auto obj0 = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(0.8f, 0.5f, 0.8f), 0.2f, 0.5f, glm :: vec3(0.0f, 0.0f, 0.0f), glm :: vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(- 1.0f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
+        // );
+        // obj0->SetLinearVelocity(glm::vec3(1.0f, 0.5f, 2.0f));  // Move along +X
+        // scene_->AddEntity(obj0);
+        // auto obj1 = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(0.5f, 0.8f, 0.8f), 0.2f, 0.5f, glm :: vec3(0.0f, 0.0f, 0.0f), glm :: vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.5f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
+        // );
+        // scene_->AddEntity(obj1);
+        // auto obj1 = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(0.8f, 0.4f, 0.2f), 0.5f, 0.0f, glm :: vec3(0.0f, 0.0f, 0.0f), glm :: vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
+        // );
+        // obj1->SetLinearVelocity(glm::vec3(-1.0f, 0.0f, 0.0f));  // Move along -X
+        // scene_->AddEntity(obj1);
+        // auto obj2 = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(0.8f, 0.4f, 0.2f), 0.5f, 0.0f, glm :: vec3(0.0f, 0.0f, 0.0f), glm :: vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
+        // );
+        // obj2->SetLinearVelocity(glm::vec3(0.0f, 1.0f, 0.0f));  // Move along +Y
+        // scene_->AddEntity(obj2);
+        // auto obj3 = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(0.8f, 0.4f, 0.2f), 0.5f, 0.0f, glm :: vec3(0.0f, 0.0f, 0.0f), glm :: vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)), glm::vec3(0.5f, 0.5f, 0.5f))
+        // );
+        // obj3->SetLinearVelocity(glm::vec3(0.0f, -1.0f, 0.0f));  // Move along -Y
+        // scene_->AddEntity(obj3);
     }
 
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (.25f, 0.4f, -.15f), glm :: vec3 (.3f, .2f, .1f)));
@@ -266,7 +317,17 @@ void Application::OnInit() {
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, 0.05f), glm :: vec3 (.01f, .01f, .01f)));
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, -0.05f), glm :: vec3 (.01f, .01f, .01f)));
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, -0.15f), glm :: vec3 (.01f, .01f, .01f)));
-    //scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 1.0f, 0.00f), glm :: vec3 (10.0f, 10.0f, 10.0f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 1.0f, 0.00f), glm :: vec3 (10.0f, 10.0f, 10.0f)));
+    
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (1.0f, 2.0f, 1.0f), glm :: vec3 (2.0f, 2.0f, 2.0f)));
+    // {
+    //     auto matball = std::make_shared<Entity>(
+    //         "meshes/matball.obj",
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 1.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.01f, 0.01f, 0.01f)) // adjust offset as needed
+    //     );
+    //     scene_->AddEntity(matball);
+    // }
 
     // Red sphere (using octahedron as sphere substitute)
     // {
@@ -308,15 +369,19 @@ void Application::OnInit() {
     //         scene_->AddEntity(cube);
     //     }
 
-    // {
-    //     auto white_cube = std::make_shared<Entity>(
-    //         "meshes/cube.obj",
-    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.5f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), 5.0f, glm::vec3(1.0f, 1.0f, 1.0f)),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, -0.08f)), 
-    //                   glm::vec3(0.2f, 0.2f, 0.2f))
-    //     );
-    //     scene_->AddEntity(white_cube);
-    // }
+    {
+        // Tyndall effect parameters: strong volumetric scattering with forward scattering bias
+        // volume_density: 控制雾的浓度 (0.15-0.3为丁达尔效应最佳范围)
+        // volume_scatter: 散射系数 (1.0=完全散射，接近1.0以增强效果)
+        // volume_emission: 可选的体积发光，增强光线可见性
+        // auto white_cube = std::make_shared<Entity>(
+        //     "meshes/cube.obj",
+        //     Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.5f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), 1.0f, glm::vec3(0.95f, 0.95f, 0.95f)),
+        //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, -0.08f)), 
+        //               glm::vec3(2.0f, 2.0f, 2.0f))
+        // );
+        // scene_->AddEntity(white_cube);
+    }
 
     // {
     //     auto Qilin = std::make_shared<Entity>(
@@ -374,7 +439,7 @@ void Application::OnInit() {
 
     // {
     //     auto MC = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Minecraft/village.obj",
+    //         "meshes/MeshResources/Minecraft/cave.obj",
     //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
     //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
     //     );
@@ -383,21 +448,21 @@ void Application::OnInit() {
     // {
     //     auto small_cube = std::make_shared<Entity>(
     //         "meshes/cube.obj",
-    //         Material(glm::vec3(1.0f, 0.6f, 0.2f), 0.0f, 0.0f, glm::vec3(800.0f, 240.0f, 30.0f)),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(200.0f, 60.0f, 60.0f)), 
-    //                   glm::vec3(5.0f, 5.0f, 5.0f))
+    //         Material(glm::vec3(1.0f, 0.6f, 0.2f), 0.0f, 0.0f, glm::vec3(400000.0f, 120000.0f, 12000.0f)),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 24.0f, 80.0f)), 
+    //                   glm::vec3(0.7f, 0.7f, 0.7f))
     //     );
     //     scene_->AddEntity(small_cube);
     // }
 
-    // {
-    //     auto Eyeball = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Eyeball/eyeball.obj", 
-    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
-    //     );
-    //     scene_->AddEntity(Eyeball);
-    // }
+    {
+        auto Eyeball = std::make_shared<Entity>(
+            "meshes/MeshResources/Eyeball/eyeball.obj", 
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
+        );
+        scene_->AddEntity(Eyeball);
+    }
 
     // Build acceleration structures
     scene_->BuildAccelerationStructures();
@@ -414,7 +479,7 @@ void Application::OnInit() {
     hover_info_buffer_->UploadData(&initial_hover, sizeof(HoverInfo));
 
     // Initialize camera state member variables
-    camera_pos_ = glm::vec3{ 0.05f, 0.85f, -0.2f };
+    camera_pos_ = glm::vec3{ -0.10f, 0.17f, 0.08f };
     camera_up_ = glm::normalize(glm::vec3{ 0.0f, 1.0f, 0.0f }); // World up
     camera_speed_ = 0.01f;
 
@@ -472,7 +537,7 @@ void Application::OnInit() {
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_WRITABLE_IMAGE, 1);          // space7 - accumulated samples
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_UNIFORM_BUFFER, 1);          // space8 - frame count
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 3);          // space9 - vertices, triangles
-    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 3);          // space10 - UV buffer, Material ID Buffer, index Buffer
+    program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 4);          // space10 - UV buffer, Material ID Buffer, index Buffer
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_STORAGE_BUFFER, 1);          // space11 - Instance Metadata Buffer
     
     program_->AddResourceBinding(grassland::graphics::RESOURCE_TYPE_IMAGE, MAX_TEXTURE_COUNT);   // space12 - Texture Buffer
@@ -506,7 +571,7 @@ void Application::OnInit() {
     dummy_image_->UploadData(clear_pixel_u8);
 
     int width, height, channels;
-    float* hdr_data = NULL; // stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/kloppenheim_07_puresky_4k.hdr", &width, &height, &channels, 4);
+    float* hdr_data = stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/qwantani_sunset_puresky_4k.hdr", &width, &height, &channels, 4);
     
     if (hdr_data) {
         core_->CreateImage(width, height, 
@@ -552,9 +617,9 @@ void Application::OnInit() {
         std::vector<uint32_t> index_begin;
         std::vector<glm::vec3> aggregated_vertices;
         std::vector<uint32_t> aggregated_triangles;
-        std::vector<glm::uvec2> emissive_pairs;
+        std::vector<glm::uvec3> emissive_pairs;
 
-        int vertex_offset = 0;
+        int vertex_offset = 0; uint32_t eid = 0;
         for (const auto &entity : scene_->GetEntities()) {
             index_begin.push_back(aggregated_triangles.size() / 3);
             if (!entity) continue;
@@ -597,7 +662,7 @@ void Application::OnInit() {
                             if (local_id >= 0 && static_cast<size_t>(local_id) < mats.size()) {
                                 const auto &m = mats[local_id];
                                 if (m.emission.x != 0.0f || m.emission.y != 0.0f || m.emission.z != 0.0f) {
-                                    emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(mat_offset + local_id));
+                                    emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(mat_offset + local_id), eid);
                                 }
                             }
                         }
@@ -606,7 +671,7 @@ void Application::OnInit() {
                         const auto &m = mats.empty() ? entity->GetDefaultMaterial() : mats[0];
                         if (m.emission.x != 0.0f || m.emission.y != 0.0f || m.emission.z != 0.0f) {
                             for (size_t t = 0; t < tri_count; ++t) {
-                                emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(global_mat_id));
+                                emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(global_mat_id), eid);
                             }
                         }
                     }
@@ -615,13 +680,14 @@ void Application::OnInit() {
                     const auto &m = entity->GetDefaultMaterial();
                     if (m.emission.x != 0.0f || m.emission.y != 0.0f || m.emission.z != 0.0f) {
                         for (size_t t = 0; t < tri_count; ++t) {
-                            emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(global_mat_id));
+                            emissive_pairs.emplace_back(tri_base + static_cast<uint32_t>(t), static_cast<uint32_t>(global_mat_id), eid);
                         }
                     }
                 }
             }
 
             vertex_offset += static_cast<int>(vcount);
+            eid ++;
         }
 
         // Ensure non-zero buffers (create minimal buffers if scene empty to avoid zero-sized GPU resources)
@@ -651,14 +717,14 @@ void Application::OnInit() {
         triangles_buffer_->UploadData(aggregated_triangles.data(), aggregated_triangles.size() * sizeof(uint32_t));
 
         if (emissive_pairs.empty()) {
-            emissive_pairs.emplace_back(0u, 0u);
+            emissive_pairs.emplace_back(0u, 0u, 0u);
             emissive_tri_count_ = 0u;
         } else {
             emissive_tri_count_ = static_cast<uint32_t>(emissive_pairs.size());
         }
-        core_->CreateBuffer(emissive_pairs.size() * sizeof(glm::uvec2),
+        core_->CreateBuffer(emissive_pairs.size() * sizeof(glm::uvec3),
                     grassland::graphics::BUFFER_TYPE_STATIC, &emissive_tris_buffer_);
-        emissive_tris_buffer_->UploadData(emissive_pairs.data(), emissive_pairs.size() * sizeof(glm::uvec2));
+        emissive_tris_buffer_->UploadData(emissive_pairs.data(), emissive_pairs.size() * sizeof(glm::uvec3));
         misc_buffer_->UploadData(&emissive_tri_count_, sizeof(uint32_t), sizeof(uint32_t) * 2);
     }
 
@@ -791,7 +857,56 @@ void Application::OnUpdate() {
 
         // Optional: Animate entities
         // For now, entities are static. You can update their transforms and call:
-        // scene_->UpdateInstances();
+        if(! camera_enabled_ && motion_blur_enabled_ && film_->GetSampleCount() % samples_per_time_ == 0){
+            current_time = - motion_blur_time_range_ + RandomFloat() * 2 * motion_blur_time_range_;
+            scene_->UpdateInstanceAtTime(current_time);
+            UpdateVerticesBuffer();  // Update shader-side geometry to match new transforms
+        }
+        
+    }
+}
+
+void Application::UpdateVerticesBuffer() {
+    // Rebuild vertices buffer with current entity transforms
+    // Called when time changes to keep shader-side geometry in sync with TLAS instances
+    
+    if (scene_->GetEntities().empty()) {
+        return;
+    }
+    
+    std::vector<glm::vec3> aggregated_vertices;
+    int vertex_offset = 0;
+    
+    // Collect world-space vertices from all entities with their current transforms
+    for (const auto &entity : scene_->GetEntities()) {
+        if (!entity) continue;
+        
+        // Download object-space vertices from entity's vertex buffer
+        auto *vb = entity->GetVertexBuffer();
+        if (vb && vb->Size() >= sizeof(glm::vec3)) {
+            size_t vcount = vb->Size() / sizeof(glm::vec3);
+            std::vector<glm::vec3> tmp(vcount);
+            vb->DownloadData(tmp.data(), vb->Size(), 0);
+
+            // Transform vertices into world space using entity's current transform
+            const glm::mat4 &xform = entity->GetTransform();
+            for (size_t i = 0; i < vcount; ++i) {
+                glm::vec4 wp = xform * glm::vec4(tmp[i], 1.0f);
+                aggregated_vertices.push_back(glm::vec3(wp));
+            }
+        }
+    }
+    
+    // Ensure non-empty buffer
+    if (aggregated_vertices.empty()) {
+        aggregated_vertices.push_back(glm::vec3(0.0f));
+    }
+    
+    // Upload to GPU vertices_buffer (space9 in shader)
+    if (vertices_buffer_) {
+        vertices_buffer_->UploadData(aggregated_vertices.data(), aggregated_vertices.size() * sizeof(glm::vec3));
+        grassland::LogInfo("Updated vertices buffer with {} vertices at time {}", 
+                          aggregated_vertices.size(), current_time);
     }
 }
 
@@ -1173,9 +1288,16 @@ void Application::OnRender() {
     
     // Clear entity ID buffer with -1 (no entity)
     command_context->CmdClearImage(entity_id_image_.get(), { {-1, 0, 0, 0} });
+
+    // Skip rendering if TLAS is not ready to avoid null acceleration structure binding
+    auto* tlas = scene_->GetTLAS();
+    if (!tlas) {
+        grassland::LogWarning("TLAS not built; skip rendering this frame");
+        return;
+    }
     
     command_context->CmdBindRayTracingProgram(program_.get());
-    command_context->CmdBindResources(0, scene_->GetTLAS(), grassland::graphics::BIND_POINT_RAYTRACING);
+    command_context->CmdBindResources(0, tlas, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(1, { color_image_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(2, { camera_object_buffer_.get() }, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(3, { scene_->GetMaterialsBuffer() }, grassland::graphics::BIND_POINT_RAYTRACING);
@@ -1197,7 +1319,8 @@ void Application::OnRender() {
     std::vector<grassland::graphics::Buffer*> space10_Buffers = {
         scene_->GetGlobalUVBuffer() ? scene_->GetGlobalUVBuffer() : dummy_buffer_.get(),
         scene_->GetGlobalMaterialIDBuffer() ? scene_->GetGlobalMaterialIDBuffer() : dummy_buffer_.get(),
-        scene_->GetGlobalIndexBuffer() ? scene_->GetGlobalIndexBuffer() : dummy_buffer_.get()
+        scene_->GetGlobalIndexBuffer() ? scene_->GetGlobalIndexBuffer() : dummy_buffer_.get(),
+        scene_->GetGlobalNormalBuffer() ? scene_->GetGlobalNormalBuffer() : dummy_buffer_.get()
     };
     command_context->CmdBindResources(10, space10_Buffers, grassland::graphics::BIND_POINT_RAYTRACING);
     command_context->CmdBindResources(11, {scene_->GetInstanceMetadataBuffer()}, grassland::graphics::BIND_POINT_RAYTRACING);
