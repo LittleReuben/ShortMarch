@@ -151,7 +151,7 @@ void Calculate(inout RayPayload payload) {
   payload. seed = tea(pixel_coords.y * DispatchRaysDimensions().x + pixel_coords.x, misc.frame_index);
   payload. bounce = 0; // 方便 instance_id 和 hit
   payload. count_emission = 1;
-  payload. current_medium_id = 0;
+  payload. current_medium_id = - 1;
   payload.scattered_count = 0;
 
 
@@ -477,6 +477,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
         // Re-orthogonalize tangent space against the interpolated normal so T/B/N are mutually orthogonal
         T = normalize(T - baseN * dot(baseN, T));
         B = normalize(B - baseN * dot(baseN, B));
+        B = normalize(B - T * dot(T, B));
         // Fix handedness to avoid mirrored normal maps
         if (dot(cross(T, B), baseN) < 0.0) B = -B;
 
@@ -491,7 +492,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
 
     }
   }
-  
+  if (mat. alpha != 0 && mat. ior != 1) mat. alpha = 1;
   return mat;
 }
 

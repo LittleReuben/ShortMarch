@@ -245,7 +245,7 @@ void Application::OnInit() {
     //     scene_->AddEntity(ground);
     //     auto glass = std::make_shared<Entity>(
     //         "meshes/cube.obj",
-    //         Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 1.0f, 0.05f),
+    //         Material(glm::vec3(0.0f, 0.2f, 0.7f), 0.5f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 1.5f, 1.0f, 0.0f),
     //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, 0.0f)), 
     //                   glm::vec3(1.0f, 0.5f, 1.0f))
     //     );
@@ -319,12 +319,30 @@ void Application::OnInit() {
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 0.3f, -0.15f), glm :: vec3 (.01f, .01f, .01f)));
     // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.35f, 1.0f, 0.00f), glm :: vec3 (10.0f, 10.0f, 10.0f)));
     
-    // scene_ -> AddPointLight(PointLight (glm :: vec3 (1.0f, 2.0f, 1.0f), glm :: vec3 (2.0f, 2.0f, 2.0f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (-1.0f, 2.0f, 1.0f), glm :: vec3 (3.0f, 3.0f, 3.0f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (2.0f, 2.0f, 1.0f), glm :: vec3 (3.0f, 3.0f, 3.0f)));
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (5.0f, 2.0f, 1.0f), glm :: vec3 (3.0f, 3.0f, 3.0f)));
     // {
     //     auto matball = std::make_shared<Entity>(
     //         "meshes/matball.obj",
-    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 1.0f),
+    //         Material(glm::vec3(0.7f, 0.3f, 0.3f), 0.5f, 0.2f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(-3.0f, 0.0f, 0.0f)), glm::vec3(0.01f, 0.01f, 0.01f)) // adjust offset as needed
+    //     );
+    //     scene_->AddEntity(matball);
+    // }
+    // {
+    //     auto matball = std::make_shared<Entity>(
+    //         "meshes/matball.obj",
+    //         Material(glm::vec3(0.7f, 0.3f, 0.3f), 0.5f, 0.2f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f),
     //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.01f, 0.01f, 0.01f)) // adjust offset as needed
+    //     );
+    //     scene_->AddEntity(matball);
+    // }
+    // {
+    //     auto matball = std::make_shared<Entity>(
+    //         "meshes/matball.obj",
+    //         Material(glm::vec3(0.7f, 0.3f, 0.3f), 0.5f, 0.2f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f),
+    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f)), glm::vec3(0.01f, 0.01f, 0.01f)) // adjust offset as needed
     //     );
     //     scene_->AddEntity(matball);
     // }
@@ -359,6 +377,29 @@ void Application::OnInit() {
     //     scene_->AddEntity(blue_cube);
     // }
 
+    // auto ground = std::make_shared<Entity>(
+    //     "meshes/cube.obj",
+    //     Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
+    //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)), 
+    //                 glm::vec3(10.0f, 0.05f, 10.0f))
+    // );
+    // scene_->AddEntity(ground);
+    // auto background = std::make_shared<Entity>(
+    //     "meshes/cube.obj",
+    //     Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(0.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
+    //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, -3.0f)), 
+    //                 glm::vec3(10.0f, 3.0f, 0.05f))
+    // );
+    // scene_->AddEntity(background);
+    // auto ceiling = std::make_shared<Entity>(
+    //     "meshes/cube.obj",
+    //     Material(glm::vec3(0.5f, 0.5f, 0.5f), 0.0f, 0.0f, glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f)),
+    //     glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, 0.0f)), 
+    //                 glm::vec3(10.0f, 0.05f, 10.0f))
+    // );
+    // scene_->AddEntity(ceiling);
+
+    // scene_ -> AddPointLight(PointLight (glm :: vec3 (0.0f, 1.25f, 0.0f), glm :: vec3 (2.0f, 1.0f, 0.5f)));
     
     // for (int i=-2; i<=+2; i++)
     //     for (int j=-2; j<=+2; j++) {
@@ -401,15 +442,15 @@ void Application::OnInit() {
     //     scene_->AddEntity(RockSet);
     // }
     
-    // {
-    //     auto MC = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Minecraft/CornellBoxMinecraft.obj",
-    //         // "meshes/MeshResources/Minecraft/glass.obj",
-    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
-    //     );
-    //     scene_ -> AddEntity(MC);
-    // }
+    {
+        auto MC = std::make_shared<Entity>(
+            "meshes/MeshResources/Minecraft/cave.obj",
+            // "meshes/MeshResources/Minecraft/glass.obj",
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
+        );
+        scene_ -> AddEntity(MC);
+    }
 
     // {
     //     auto shoe = std::make_shared<Entity>(
@@ -427,19 +468,19 @@ void Application::OnInit() {
     //     scene_ -> AddEntity(shoe);
     // }
 
-    // {
-    //     auto small_cube = std::make_shared<Entity>(
-    //         "meshes/cube.obj",
-    //         Material(glm::vec3(0.5f, 0.3f, 0.1f), 0.0f, 0.0f, glm::vec3(90.0f, 90.0f, 90.0f)),
-    //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.05f, 1.5f, 0.15f)), 
-    //                   glm::vec3(0.04f, 0.04f, 0.04f))
-    //     );
-    //     scene_->AddEntity(small_cube);
-    // }
+    {
+        auto small_cube = std::make_shared<Entity>(
+            "meshes/cube.obj",
+            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 0.0f, glm::vec3(9.0f, 5.0f, 1.0f)),
+            glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(2.5f / 10, 3.65f / 10, -1.5f / 10)), 
+                      glm::vec3(0.11f / 10, 0.11f / 10, 0.11f / 10))
+        );
+        scene_->AddEntity(small_cube);
+    }
 
     // {
     //     auto MC = std::make_shared<Entity>(
-    //         "meshes/MeshResources/Minecraft/cave.obj",
+    //         "meshes/MeshResources/Minecraft/tyndall.obj",
     //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
     //         glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(0.1f, 0.1f, 0.1f))
     //     );
@@ -455,14 +496,14 @@ void Application::OnInit() {
     //     scene_->AddEntity(small_cube);
     // }
 
-    {
-        auto Eyeball = std::make_shared<Entity>(
-            "meshes/MeshResources/Eyeball/eyeball.obj", 
-            Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
-        );
-        scene_->AddEntity(Eyeball);
-    }
+    // {
+    //     auto Eyeball = std::make_shared<Entity>(
+    //         "meshes/MeshResources/Eyeball/eyeball.obj", 
+    //         Material(glm::vec3(1.0f, 1.0f, 1.0f), 0.2f, 0.0f),
+    //         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f))
+    //     );
+    //     scene_->AddEntity(Eyeball);
+    // }
 
     // Build acceleration structures
     scene_->BuildAccelerationStructures();
@@ -479,16 +520,16 @@ void Application::OnInit() {
     hover_info_buffer_->UploadData(&initial_hover, sizeof(HoverInfo));
 
     // Initialize camera state member variables
-    camera_pos_ = glm::vec3{ -0.10f, 0.17f, 0.08f };
+    camera_pos_ = glm::vec3{ -0.45f, 0.35f, 0.35f };
     camera_up_ = glm::normalize(glm::vec3{ 0.0f, 1.0f, 0.0f }); // World up
     camera_speed_ = 0.01f;
 
     // Initialize new mouse/view variables
-    yaw_ = 90.0f; // Point down -Z
-    pitch_ = 20.0f;
+    yaw_ = 270.0f; // Point down -Z
+    pitch_ = -10.0f;
     last_x_ = (float)window_->GetWidth() / 2.0f;
     last_y_ = (float)window_->GetHeight() / 2.0f;
-    mouse_sensitivity_ = 0.1f;
+    mouse_sensitivity_ = 0.01f;
     first_mouse_ = true;
 
     // Calculate initial camera_front_ based on yaw and pitch
@@ -571,7 +612,7 @@ void Application::OnInit() {
     dummy_image_->UploadData(clear_pixel_u8);
 
     int width, height, channels;
-    float* hdr_data = stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/qwantani_sunset_puresky_4k.hdr", &width, &height, &channels, 4);
+    float* hdr_data = stbi_loadf("C:/Users/LRYP/Desktop/ACG/project/ShortMarch/external/LongMarch/assets/meshes/kloppenheim_07_puresky_4k.hdr", &width, &height, &channels, 4);
     
     if (hdr_data) {
         core_->CreateImage(width, height, 
@@ -585,7 +626,7 @@ void Application::OnInit() {
         grassland::LogInfo("HDR skybox loaded: {}x{}", width, height);
     } else {
         grassland::LogWarning("Failed to load HDR skybox, using dummy image");
-        float fallback[4] = {0.1f, 0.3f, 0.5f, 1.0f}; // 天空蓝色
+        float fallback[4] = {0.05f, 0.15f, 0.25f, 1.0f}; // 天空蓝色
         core_->CreateImage(1, 1, 
                             grassland::graphics::IMAGE_FORMAT_R32G32B32A32_SFLOAT,
                             &hdr_skybox_);
