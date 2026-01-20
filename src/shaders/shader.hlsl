@@ -355,7 +355,7 @@ void SampleVolumeContribution(int mat_id, float t_end, out float3 emission, out 
   }
   float distance = t_end;
   float optical_depth = mat.volume_density * distance;
-  while(distance < 0);
+  // while(distance < 0);
   // Beer-Lambert law: transmittance = exp(-extinction * distance)
   // Extinction coefficient = density (total attenuation from both scattering and absorption)
   // 使用 Beer-Lambert 定律计算透射率：transmittance = exp(-σ_t × distance)
@@ -379,7 +379,7 @@ void SampleVolumeContribution(int mat_id, float t_end, out float3 emission, out 
   
   // Handle volumetric medium when ray misses (goes to infinity)
   // 当光线未击中物体（射向天空）时，处理介质的体积效应
-  float3 skybox_color = SampleSkybox(WorldRayDirection());
+  float3 skybox_color = SampleSkybox(WorldRayDirection()) * 2;
   
   if (payload.current_medium_id != -1) {
     // Ray is traveling through a medium - apply volumetric effects over infinite distance
@@ -492,7 +492,7 @@ Material getMaterial(in uint instance_id, in uint primitive_id, in BuiltInTriang
 
     }
   }
-  if (mat. alpha != 0 && mat. ior != 1) mat. alpha = 1;
+  if (mat. alpha != 0 && abs(mat. ior - 1) > 1e-4) mat. alpha = 1;
   return mat;
 }
 
@@ -632,7 +632,6 @@ float3 CalcLightAttenuation(float3 origin, float3 dir, float dist_to_light, int 
   ShadowPayload sp;
   sp. attenuation = float3 (1.0, 1.0, 1.0);
   sp. current_medium_id = medium_id;
-  while(medium_id == -1);
   sp.pre_t = 0;
   sp.t_max = dist_to_light;
   RayDesc shadow;

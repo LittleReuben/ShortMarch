@@ -96,7 +96,7 @@ private:
     float pitch_;
     float last_x_;
     float last_y_;
-    float aperture_size_ = 0.000;
+    float aperture_size_ = 0.005;
     float focal_distance_ = 1.0;
     float mouse_sensitivity_;
     float motion_blur_time_range_ = 0.05;
